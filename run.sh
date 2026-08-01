@@ -7,7 +7,7 @@ set -euo pipefail
 
 PORT="${API_PORT:-8083}"
 UI_PORT="${UI_PORT:-3000}"
-MAX_WAIT_SECONDS=90
+MAX_WAIT_SECONDS=120
 POLL_INTERVAL_SECONDS=2
 
 echo "==> Building and starting Ark Fund API (docker compose up --build)..."
