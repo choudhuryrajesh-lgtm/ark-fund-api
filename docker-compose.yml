@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: on-failure:5
     environment:
       POSTGRES_DB: arkdb
       POSTGRES_USER: ark
@@ -14,9 +15,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      # On a brand-new volume, the official Postgres image does an initial
+      # initdb, then internally restarts once before it's truly ready.
+      # pg_isready can briefly succeed in the gap between those two, which
+      # would let `depends_on: condition: service_healthy` fire early. The
+      # start_period gives that cycle room to finish before failures count
+      # against `retries`, so the first "healthy" verdict is the real one.
+      start_period: 15s
 
   api:
     build: .
+    # Self-heals from the (rare) case where Flyway still races Postgres on a
+    # truly cold volume despite the healthcheck above — belt and suspenders.
+    restart: on-failure:5
     ports:
       - "${API_PORT:-8083}:8083"
     environment:
@@ -28,6 +39,16 @@ services:
       # exist — otherwise Flyway races the database on a cold start.
       db:
         condition: service_healthy
+
+  # Optional demo UI — not part of the take-home deliverable, just a
+  # convenience for exercising the API visually. See frontend/README.md.
+  frontend:
+    build: ./frontend
+    restart: on-failure:5
+    ports:
+      - "${UI_PORT:-3000}:80"
+    depends_on:
+      - api
 
 volumes:
   ark_pg_data:

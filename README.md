@@ -72,6 +72,12 @@ curl http://localhost:8083/actuator/health
 
 **Explore the API interactively:** http://localhost:8083/swagger-ui.html
 
+**Demo UI (optional, bonus):** http://localhost:3000 — a minimal React app exercising the
+API end to end (create clients/funds/investors, record transactions, view reports). Not
+part of the graded submission — the brief explicitly says a front end isn't required.
+Starts automatically with `./run.sh` / `docker compose up --build`; see
+[`frontend/README.md`](frontend/README.md) for details.
+
 **Shut down** (add `-v` to also drop the database volume):
 
 ```bash

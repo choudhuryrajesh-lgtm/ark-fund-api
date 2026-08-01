@@ -1,0 +1,15 @@
+# Multi-stage: build the static React app, then serve it from a plain nginx
+# image — no Node runtime ships in the final container.
+FROM node:20-alpine AS build
+WORKDIR /build
+
+COPY package.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+FROM nginx:alpine
+COPY --from=build /build/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
