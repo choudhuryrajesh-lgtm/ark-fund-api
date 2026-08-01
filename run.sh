@@ -3,6 +3,12 @@
 # ready, then prints exactly what to hit next. `docker compose up --build`
 # alone already satisfies "run it in one command" — this just removes the
 # guesswork of "is it up yet?" for someone testing the API for the first time.
+#
+# The stack is started detached (`up -d`) and this script never stops it —
+# not on exit, not on Ctrl+C while polling below. Once started, the
+# containers run independently of this script; shutting them down is
+# entirely the caller's choice, via `docker compose down` whenever they're
+# actually done (see the closing message).
 set -euo pipefail
 
 PORT="${API_PORT:-8083}"
@@ -68,5 +74,8 @@ echo "  Try it (demo data is pre-seeded):"
 echo "    curl http://localhost:${PORT}/api/v1/clients"
 echo "    curl \"http://localhost:${PORT}/api/v1/clients/11111111-1111-1111-1111-111111111111/reports/portfolio\""
 echo
-echo "  Shut down:  docker compose down"
-echo "  Full reset: docker compose down -v   (also drops the seeded database)"
+echo "  The stack keeps running in the background — this script won't stop it"
+echo "  for you. Shut it down whenever you're done:"
+echo
+echo "    docker compose down"
+echo "    docker compose down -v   (also drops the seeded database)"
