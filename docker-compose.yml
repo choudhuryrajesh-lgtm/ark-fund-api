@@ -1,0 +1,33 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: arkdb
+      POSTGRES_USER: ark
+      POSTGRES_PASSWORD: ark_local_pw
+    ports:
+      - "5432:5432"
+    volumes:
+      - ark_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ark -d arkdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    ports:
+      - "${API_PORT:-8083}:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/arkdb
+      SPRING_DATASOURCE_USERNAME: ark
+      SPRING_DATASOURCE_PASSWORD: ark_local_pw
+    depends_on:
+      # Wait for Postgres to accept connections, not just for the container to
+      # exist — otherwise Flyway races the database on a cold start.
+      db:
+        condition: service_healthy
+
+volumes:
+  ark_pg_data:

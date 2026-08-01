@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    # H2 in PostgreSQL compatibility mode so `mvn verify` runs anywhere without
+    # a Docker daemon. The Flyway migrations are written in portable SQL so the
+    # same scripts apply cleanly to both H2 and Postgres.
+    url: jdbc:h2:mem:arktest;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    # Skip the demo seed data (now V3) so tests assert against a database with
+    # no business data, but still run schema + reference-data migrations
+    # (V1, V2) — transaction_types must be populated for any transaction to
+    # be postable at all.
+    target: "2"
+
+logging:
+  level:
+    com.ark.fundapi: WARN

@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: ark-fund-api
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/arkdb}
+    username: ${SPRING_DATASOURCE_USERNAME:ark}
+    password: ${SPRING_DATASOURCE_PASSWORD:ark_local_pw}
+
+  jpa:
+    # Flyway owns the schema. Hibernate must never alter it — `validate` fails
+    # fast at startup if the entities and the migrated schema have drifted,
+    # which is far safer than `update` silently changing production tables.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: 8083
+  error:
+    include-message: always
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+
+logging:
+  level:
+    com.ark.fundapi: INFO

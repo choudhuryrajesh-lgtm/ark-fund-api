@@ -1,0 +1,41 @@
+{
+  "family": "ark-fund-api-staging",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ark-fund-api-execution-role",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ark-fund-api-task-role",
+  "containerDefinitions": [
+    {
+      "name": "ark-fund-api",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/ark-fund-api:latest",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8083, "protocol": "tcp" }],
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "staging" },
+        { "name": "AWS_REGION", "value": "us-east-1" }
+      ],
+      "secrets": [
+        { "name": "DB_URL", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-url" },
+        { "name": "DB_USERNAME", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-username" },
+        { "name": "DB_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-password" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/ark-fund-api-staging",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "app"
+        }
+      }
+    }
+  ]
+}

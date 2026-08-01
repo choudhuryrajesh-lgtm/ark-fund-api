@@ -1,0 +1,16 @@
+# CodeDeploy AppSpec for ECS blue/green deployment.
+# Referenced by the "Deploy to ECS (production, blue/green)" step in
+# .github/workflows/ci-cd.yml. See docs/05-CICD.md #3 for the bake/rollback behavior.
+version: 0.0
+Resources:
+  - TargetService:
+      Type: AWS::ECS::Service
+      Properties:
+        TaskDefinition: <TASK_DEFINITION>
+        LoadBalancerInfo:
+          ContainerName: "ark-fund-api"
+          ContainerPort: 8083
+        PlatformVersion: "LATEST"
+Hooks:
+  - BeforeAllowTraffic: "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:ark-fund-api-pre-traffic-hook"
+  - AfterAllowTraffic: "arn:aws:lambda:us-east-1:ACCOUNT_ID:function:ark-fund-api-post-traffic-hook"
