@@ -41,6 +41,16 @@ One command, from a clean checkout. No local Java or Maven required — the buil
 inside Docker.
 
 ```bash
+./run.sh
+```
+
+This builds the image, starts PostgreSQL and the API, waits until the API is actually
+responding (not just "container started"), then prints the Swagger UI URL and a couple of
+ready-to-run `curl` examples against the pre-seeded demo data.
+
+Equivalent, if you'd rather run it directly:
+
+```bash
 docker compose up --build
 ```
 
@@ -51,6 +61,7 @@ If port 8083 is already in use:
 
 ```bash
 API_PORT=8090 docker compose up --build
+# or: API_PORT=8090 ./run.sh
 ```
 
 **Verify it's up:**
