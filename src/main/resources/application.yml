@@ -35,10 +35,39 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,circuitbreakers,circuitbreakerevents
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    circuitbreakers:
+      enabled: true
+
+# Guards the reporting endpoints (ReportingService), the most DB-intensive
+# read path in this API — RDS is this app's only real external dependency,
+# so that's where a struggling downstream could otherwise cascade into
+# every request piling up on an exhausted connection pool instead of
+# failing fast. See ReportingService for where this is actually applied.
+resilience4j:
+  circuitbreaker:
+    instances:
+      database:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        # Without this, a 404 for a bad client/fund/investor ID counts as a
+        # circuit-breaker "failure" like any other exception — a wave of
+        # ordinary client typos would trip the breaker exactly as if RDS
+        # were actually down. Only genuine infrastructure failures should
+        # count; these two are normal, expected outcomes already mapped to
+        # their own HTTP statuses by ApiExceptionHandler.
+        ignore-exceptions:
+          - com.ark.fundapi.exception.ResourceNotFoundException
+          - com.ark.fundapi.exception.BusinessRuleException
 
 springdoc:
   swagger-ui:

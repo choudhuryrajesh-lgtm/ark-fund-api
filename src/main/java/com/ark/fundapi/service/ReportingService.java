@@ -4,6 +4,9 @@ import com.ark.fundapi.domain.Client;
 import com.ark.fundapi.domain.Fund;
 import com.ark.fundapi.domain.Investor;
 import com.ark.fundapi.domain.TransactionType;
+import com.ark.fundapi.exception.BusinessRuleException;
+import com.ark.fundapi.exception.ResourceNotFoundException;
+import com.ark.fundapi.exception.ServiceUnavailableException;
 import com.ark.fundapi.repository.FundRepository;
 import com.ark.fundapi.repository.TransactionRepository;
 import com.ark.fundapi.repository.TransactionTypeRepository;
@@ -11,6 +14,7 @@ import com.ark.fundapi.repository.projection.FundInvestorCount;
 import com.ark.fundapi.repository.projection.PartyTypeTotal;
 import com.ark.fundapi.repository.projection.TypeTotal;
 import com.ark.fundapi.web.dto.ReportDtos;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -74,6 +78,7 @@ public class ReportingService {
     // Fund report
     // ------------------------------------------------------------------
 
+    @CircuitBreaker(name = "database", fallbackMethod = "fundReportFallback")
     public ReportDtos.FundReport fundReport(UUID clientId, UUID fundId, LocalDate asOfDate) {
         log.info("Generating fund report for fund {} (client {}), asOf {}", fundId, clientId, asOfDate);
         Fund fund = fundService.require(clientId, fundId);
@@ -103,10 +108,23 @@ public class ReportingService {
         );
     }
 
+    /**
+     * Circuit breaker fallback for {@link #fundReport} — signature must
+     * mirror the guarded method plus a trailing Throwable (Resilience4j's
+     * convention for matching a fallback to its target).
+     */
+    @SuppressWarnings("unused")
+    private ReportDtos.FundReport fundReportFallback(UUID clientId, UUID fundId, LocalDate asOfDate, Throwable t) {
+        rethrowIfExpected(t);
+        log.error("Circuit breaker open for fund report (fund {}, client {}): {}", fundId, clientId, t.toString());
+        throw new ServiceUnavailableException("Reporting is temporarily unavailable. Please try again shortly.");
+    }
+
     // ------------------------------------------------------------------
     // Investor report
     // ------------------------------------------------------------------
 
+    @CircuitBreaker(name = "database", fallbackMethod = "investorReportFallback")
     public ReportDtos.InvestorReport investorReport(UUID clientId, UUID investorId, LocalDate asOfDate) {
         log.info("Generating investor report for investor {} (client {}), asOf {}", investorId, clientId, asOfDate);
         Investor investor = investorService.require(clientId, investorId);
@@ -135,10 +153,21 @@ public class ReportingService {
         );
     }
 
+    /** Circuit breaker fallback for {@link #investorReport} — see fundReportFallback for the pattern. */
+    @SuppressWarnings("unused")
+    private ReportDtos.InvestorReport investorReportFallback(
+            UUID clientId, UUID investorId, LocalDate asOfDate, Throwable t) {
+        rethrowIfExpected(t);
+        log.error("Circuit breaker open for investor report (investor {}, client {}): {}",
+                investorId, clientId, t.toString());
+        throw new ServiceUnavailableException("Reporting is temporarily unavailable. Please try again shortly.");
+    }
+
     // ------------------------------------------------------------------
     // Client portfolio report
     // ------------------------------------------------------------------
 
+    @CircuitBreaker(name = "database", fallbackMethod = "portfolioReportFallback")
     public ReportDtos.ClientPortfolioReport portfolioReport(UUID clientId, LocalDate asOfDate) {
         log.info("Generating portfolio report for client {}, asOf {}", clientId, asOfDate);
         Client client = clientService.require(clientId);
@@ -183,6 +212,28 @@ public class ReportingService {
                 buildTotals(portfolioByType, allTypes),
                 summaries
         );
+    }
+
+    /** Circuit breaker fallback for {@link #portfolioReport} — see fundReportFallback for the pattern. */
+    @SuppressWarnings("unused")
+    private ReportDtos.ClientPortfolioReport portfolioReportFallback(UUID clientId, LocalDate asOfDate, Throwable t) {
+        rethrowIfExpected(t);
+        log.error("Circuit breaker open for portfolio report (client {}): {}", clientId, t.toString());
+        throw new ServiceUnavailableException("Reporting is temporarily unavailable. Please try again shortly.");
+    }
+
+    /**
+     * Resilience4j invokes the fallback for every exception the guarded
+     * method throws, not just ones that actually tripped the breaker —
+     * {@code ignore-exceptions} in application.yml only stops these from
+     * counting toward the failure rate, it doesn't stop the fallback from
+     * firing. Without this, a request for a nonexistent client/fund/investor
+     * would incorrectly surface as 503 instead of 404.
+     */
+    private static void rethrowIfExpected(Throwable t) {
+        if (t instanceof ResourceNotFoundException || t instanceof BusinessRuleException) {
+            throw (RuntimeException) t;
+        }
     }
 
     // ------------------------------------------------------------------

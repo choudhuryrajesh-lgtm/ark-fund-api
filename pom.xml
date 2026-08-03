@@ -20,7 +20,20 @@
     <properties>
         <java.version>21</java.version>
         <springdoc.version>2.6.0</springdoc.version>
+        <cucumber.version>7.18.1</cucumber.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.cucumber</groupId>
+                <artifactId>cucumber-bom</artifactId>
+                <version>${cucumber.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -38,6 +51,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Resilience4j's @CircuitBreaker annotation is AOP-proxy-based —
+             this is what actually makes the proxying work. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-spring-boot3</artifactId>
+            <version>2.2.0</version>
         </dependency>
 
         <dependency>
@@ -72,6 +97,34 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- Component tests (src/test/.../cucumber) — Gherkin scenarios run
+             through the real HTTP layer against the same real Postgres
+             docker-compose.yml already runs for local dev (see
+             CucumberSpringConfiguration), not H2. Only executed via
+             `mvn verify -Pcomponent-tests` (see the profile below), so the
+             default `mvn test`/`mvn verify` stays exactly as Docker-free as
+             it's always been. -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-spring</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-junit-platform-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-suite</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -80,6 +133,104 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+
+            <!-- Instruments `mvn test` to produce target/site/jacoco/jacoco.xml
+                 — the coverage report SonarCloud reads in CI (see
+                 .github/workflows/ci-cd.yml's "SonarCloud scan" step). Runs
+                 on every build, not just Sonar's — coverage data this cheap
+                 to generate is worth having regardless of whether Sonar
+                 consumes it that run. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.13</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Opt-in: mvn verify -Pcomponent-tests
+             Runs the Cucumber component suite (RunCucumberComponentTestsIT)
+             against the real Postgres docker-compose.yml already runs for
+             local dev — start it first with `docker compose up -d db`.
+             Deliberately NOT part of the default `mvn verify`/`mvn test`
+             (what CI and the Dockerfile build both run) so that command's
+             long-standing "no Docker daemon needed" guarantee stays true;
+             this is a separate, slower, more thorough tier on top of it. -->
+        <profile>
+            <id>component-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <!-- Scoped to exactly this runner — without it,
+                                 Failsafe's default *IT.java pattern would also
+                                 match RunCucumberSmokeTestsIT, which needs a
+                                 SMOKE_BASE_URL this profile has no reason to set. -->
+                            <includes>
+                                <include>**/RunCucumberComponentTestsIT.java</include>
+                            </includes>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Opt-in: mvn verify -Psmoke-tests (-DSMOKE_BASE_URL=https://... or
+             the env var of the same name — see SmokeCucumberConfiguration).
+             Runs the same feature files against an already-deployed
+             instance instead of booting the app locally — a genuine
+             post-deploy verification gate. Wired into
+             .github/workflows/ci-cd.yml's deploy-demo job, right after the
+             new task definition is confirmed stable. -->
+        <profile>
+            <id>smoke-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <includes>
+                                <include>**/RunCucumberSmokeTestsIT.java</include>
+                            </includes>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

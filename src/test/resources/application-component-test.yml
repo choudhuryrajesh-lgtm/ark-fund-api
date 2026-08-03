@@ -1,0 +1,8 @@
+spring:
+  flyway:
+    # Only bites on a genuinely fresh volume — see application-test.yml for
+    # the same reasoning. If docker-compose's db volume already has the demo
+    # seed applied from prior use, this doesn't retroactively remove it;
+    # component test data uses distinctive names/emails to stay clear of it
+    # regardless (see ClientLifecycleSteps' email uniquification).
+    target: "2"

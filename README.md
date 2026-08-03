@@ -86,10 +86,53 @@ docker compose down
 
 ### Running the tests
 
-Tests run against in-memory H2, so no Docker daemon is needed:
+Two tiers:
+
+**Unit/integration (`mvn test` / `mvn verify`)** — runs against in-memory H2, so no
+Docker daemon is needed:
 
 ```bash
 mvn verify
+```
+
+**Component (Cucumber, live dependency)** — Gherkin scenarios (`src/test/resources/features`)
+run through the real HTTP layer against the same real PostgreSQL `docker compose` already
+runs for local dev, not H2's compatibility mode. Opt-in and separate from the command
+above specifically so that one keeps its no-Docker-needed guarantee:
+
+```bash
+docker compose up -d db
+mvn verify -Pcomponent-tests
+```
+
+**Code quality + coverage (SonarCloud)** — runs automatically in CI on every push/PR
+(`build-test` job), reading the JaCoCo coverage report `mvn test` now produces
+(`target/site/jacoco/jacoco.xml`). One-time setup:
+
+1. Sign in to [sonarcloud.io](https://sonarcloud.io) with GitHub, import this repo as a
+   new project (free for public repos).
+2. Note the **organization key** and **project key** it assigns.
+3. Generate a token: **My Account → Security → Generate Token**.
+4. In this repo's GitHub settings (**Settings → Secrets and variables → Actions**):
+   - Secret `SONAR_TOKEN` = the token from step 3.
+   - Variable `SONAR_ORGANIZATION` = the organization key from step 2.
+   - Variable `SONAR_PROJECT_KEY` = the project key from step 2.
+
+Runs with `continue-on-error: true` for now (advisory, same as the OWASP/SpotBugs steps
+next to it) — not yet a merge gate.
+
+**Smoke (Cucumber, post-deploy)** — the exact same feature files, but as a pure black-box
+HTTP client against an *already-running* instance instead of booting one — a real
+post-deploy verification gate, not just a health-check curl. Wired into
+`.github/workflows/ci-cd.yml`'s `deploy-demo` job automatically after every deploy; runnable
+by hand against anything with a URL:
+
+```bash
+docker compose up -d --build          # local stand-in
+mvn verify -Psmoke-tests -Dsmoke.base.url=http://localhost:8083
+
+# or against the real deployed demo environment
+mvn verify -Psmoke-tests -Dsmoke.base.url="$(cd terraform/environments/demo && terraform output -raw api_url)"
 ```
 
 ---
@@ -324,8 +367,9 @@ and exposes columns never meant to be public.
 
 ## Test coverage
 
-14 tests covering the reporting arithmetic and the tenant boundary — the two places where a
-defect would be both silent and financially meaningful.
+**16 unit/integration tests** (`mvn test`, H2, no Docker) covering the reporting arithmetic
+and the tenant boundary — the two places where a defect would be both silent and financially
+meaningful.
 
 - Fund report aggregation, including that per-investor positions sum back to the fund balance
 - Investor reports spanning multiple funds
@@ -338,3 +382,19 @@ defect would be both silent and financially meaningful.
 - Deletion blocked for funds with transactions
 - Duplicate fund names within a client rejected
 - Credit/debit direction for every transaction type
+
+**5 Cucumber component scenarios** (`mvn verify -Pcomponent-tests`, real PostgreSQL, real
+HTTP layer — see "Running the tests" above) covering the same kind of ground end-to-end
+against a live dependency rather than H2's compatibility mode:
+
+- Client creation, duplicate-email rejection, deletion
+- A fund report's aggregation SQL against real Postgres (credits, debits, net balance,
+  investor count) — exactly the kind of query where Postgres-specific behavior could
+  diverge from H2
+- Transaction dated before fund inception rejected, verified end-to-end through the real
+  HTTP layer
+
+**Same 5 scenarios again, as a post-deploy smoke test** (`mvn verify -Psmoke-tests`) — run
+automatically in CI against `demo` right after every deploy stabilizes, and runnable by
+hand against any live URL. Proves the deployed service behaves correctly end-to-end, not
+just that the container started.

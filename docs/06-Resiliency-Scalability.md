@@ -39,9 +39,60 @@ reactive autoscaling for a predictable spike.
 |---|---|---|
 | Connection pool bounds (HikariCP) | DB access | Prevents one slow query from exhausting all app threads |
 | Statement timeout | DB queries | Reporting aggregations get a bounded max execution time so a pathological query can't hold a connection indefinitely |
-| Circuit breaker (Resilience4j) | Any future outbound call (e.g., a future bank integration or notification service) | Fails fast instead of queuing requests behind a dead dependency; not yet needed for the current DB-only dependency graph but the library is a one-line addition when phase 2/3 introduces outbound calls |
+| Circuit breaker (Resilience4j) | `ReportingService`'s three report methods (fund/investor/portfolio) | **Built, not aspirational** — see §3a below. RDS is this API's only real external dependency, and reporting is its most DB-intensive read path; if RDS starts failing repeatedly, the breaker fails fast instead of every request piling onto an already-exhausted connection pool |
 | Bulkhead | ECS task-level (separate service if a heavy reporting workload is added) | Isolates report-generation load from CRUD latency if/when reports grow expensive enough to need it — not needed at today's aggregation-query cost |
 | Graceful degradation | Reporting endpoints | A report query timeout returns a 503 with `Retry-After`, not a hung connection — client sees a clear signal rather than an opaque failure |
+
+### 3a. Circuit breaker configuration, explained
+
+From `application.yml`:
+
+```yaml
+resilience4j:
+  circuitbreaker:
+    instances:
+      database:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - com.ark.fundapi.exception.ResourceNotFoundException
+          - com.ark.fundapi.exception.BusinessRuleException
+```
+
+A circuit breaker moves through three states:
+
+- **CLOSED** — normal operation, every call goes through.
+- **OPEN** — calls are rejected immediately (routed to the fallback) without attempting
+  the real method at all — the actual "fail fast" behavior.
+- **HALF_OPEN** — a probe state: let a few calls through to test whether the dependency
+  recovered before deciding to fully close again or snap back open.
+
+What each setting controls:
+
+| Setting | Meaning |
+|---|---|
+| `sliding-window-type: COUNT_BASED` | Judges health over the last N *calls*, not a time window — more predictable than `TIME_BASED` for a low/bursty-traffic API, where a quiet period could otherwise look artificially healthy |
+| `sliding-window-size: 10` | That N — only the most recent 10 calls are considered; older ones roll off |
+| `minimum-number-of-calls: 5` | Guards against judging on too small a sample — even 2 failures out of 2 calls (100%) won't trip the breaker until at least 5 calls have happened |
+| `failure-rate-threshold: 50` | Once ≥5 calls are in the window, ≥50% failing flips CLOSED → OPEN |
+| `wait-duration-in-open-state: 10s` | How long the breaker stays OPEN — rejecting everything immediately — before it's willing to test again |
+| `automatic-transition-from-open-to-half-open-enabled: true` | The breaker moves itself OPEN → HALF_OPEN after that 10s, without needing an incoming request to trigger it |
+| `permitted-number-of-calls-in-half-open-state: 3` | Only 3 real calls are let through as a probe; enough successes closes the breaker again, enough failures sends it back to OPEN for another 10s |
+| `ignore-exceptions` | A separate axis: *what counts as a failure* at all. Without this, a 404 for a mistyped client/fund/investor UUID counts identically to RDS actually being down — a burst of ordinary client typos would incorrectly trip the breaker for everyone. `ResourceNotFoundException`/`BusinessRuleException` are expected, already-handled outcomes (mapped to their own HTTP statuses by `ApiExceptionHandler`), so they're excluded from the failure-rate calculation entirely |
+
+**A subtlety worth knowing**: `ignore-exceptions` only stops an exception from counting
+toward the failure rate — it does *not* stop Resilience4j's fallback method from being
+invoked. The fallback method itself has to explicitly re-throw expected exceptions
+(`rethrowIfExpected(...)` in `ReportingService`) or a plain 404 would incorrectly surface
+as a 503. This was caught by testing against a running instance, not by unit tests alone
+— worth remembering as a general lesson: a green test suite doesn't catch every
+integration-level surprise, especially with AOP-based cross-cutting concerns like this.
+
 
 ## 4. Database scalability
 

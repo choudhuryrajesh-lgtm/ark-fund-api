@@ -2,6 +2,7 @@ package com.ark.fundapi.web;
 
 import com.ark.fundapi.exception.BusinessRuleException;
 import com.ark.fundapi.exception.ResourceNotFoundException;
+import com.ark.fundapi.exception.ServiceUnavailableException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.mapping.PropertyReferenceException;
@@ -40,6 +41,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(BusinessRuleException.class)
     public ProblemDetail handleBusinessRule(BusinessRuleException ex) {
         return problem(HttpStatus.CONFLICT, "Business rule violation", ex.getMessage(), "business-rule-violation");
+    }
+
+    /** A circuit breaker fallback rejected this call — see ServiceUnavailableException. */
+    @ExceptionHandler(ServiceUnavailableException.class)
+    public ProblemDetail handleServiceUnavailable(ServiceUnavailableException ex) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Service temporarily unavailable",
+                ex.getMessage(), "service-unavailable");
     }
 
     /** Bean-validation failures — reported per field so a client can fix all of them at once. */
