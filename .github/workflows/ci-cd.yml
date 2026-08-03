@@ -60,7 +60,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-ark-fund-api
+          role-to-assume: arn:aws:iam::976193264048:role/github-actions-ark-fund-api
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
@@ -77,6 +77,39 @@ jobs:
           docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "image=$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
+  deploy-demo:
+    name: Deploy to demo
+    needs: build-image
+    runs-on: ubuntu-latest
+    environment: demo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::976193264048:role/github-actions-ark-fund-api
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Render task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: deploy/ecs/task-definition.demo.json
+          container-name: ark-fund-api
+          image: ${{ needs.build-image.outputs.image }}
+
+      # demo is a single-task, throwaway environment (terraform/README.md) —
+      # no CodeDeploy blue/green here, just a plain rolling update, same as
+      # the ecs_service resource modules/ecs creates for it.
+      - name: Deploy to ECS (demo)
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ark-fund-demo
+          cluster: ark-fund-demo
+          wait-for-service-stability: true
+
   deploy-staging:
     name: Deploy to staging
     needs: build-image
@@ -88,7 +121,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-ark-fund-api
+          role-to-assume: arn:aws:iam::976193264048:role/github-actions-ark-fund-api
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Render task definition
@@ -125,7 +158,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-ark-fund-api
+          role-to-assume: arn:aws:iam::976193264048:role/github-actions-ark-fund-api
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Render task definition

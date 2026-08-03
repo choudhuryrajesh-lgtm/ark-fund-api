@@ -15,10 +15,11 @@ a real AWS account. That's the next step, on your own credentials.
 
 ```
 terraform/
-├── modules/            9 reusable modules — network, security-groups, rds, ecr,
-│                        alb, ecs, api-gateway, dns
+├── modules/            10 reusable modules — network, security-groups, rds, ecr,
+│                        alb, ecs, api-gateway, dns, static-site, github-oidc
 └── environments/
-    ├── shared/          ECR repository — applied once, independent of the others
+    ├── shared/          ECR repository + GitHub Actions OIDC role — applied once,
+    │                    independent of the others
     ├── demo/             minimal-cost, short-lived spin-up (§ below)
     ├── staging/          full stack, staging sizing
     └── production/       full stack, production sizing
@@ -29,7 +30,34 @@ environments (images tagged by commit SHA, promoted staging → production by re
 see [`docs/05-CICD.md`](../docs/05-CICD.md)). If `staging` and `production` each tried to
 create their own copy of it via `module "ecr"`, two independent Terraform states would
 fight over the same repository name. `shared/` creates it once; `staging`/`production`
-each look it up with a `data "aws_ecr_repository"` read instead.
+each look it up with a `data "aws_ecr_repository"` read instead. The GitHub Actions OIDC
+role (`module "github_oidc"`) is account-wide for the same reason — one IAM OIDC provider
+per AWS account, not one per environment.
+
+## CI/CD (`.github/workflows/ci-cd.yml`)
+
+Every push to `main` runs tests, builds an image, and deploys it to `demo` automatically —
+build → push to ECR → render `deploy/ecs/task-definition.demo.json` → `ecs:UpdateService`.
+`staging`/`production` jobs are also defined in the workflow but not wired up for real yet
+(no domain/CodeDeploy applied) — see their section further down.
+
+Authentication is OIDC, not long-lived AWS keys in a GitHub secret: `module "github_oidc"`
+in `environments/shared` creates an IAM OIDC provider trusting
+`token.actions.githubusercontent.com`, scoped via the token's `sub` claim to only this
+repo, plus a role with just enough permissions to push to ECR and update the `demo`
+service (`iam:PassRole` scoped to exactly the two `demo` roles is the actual privilege
+boundary, since `ecs:RegisterTaskDefinition` itself can't be resource-scoped).
+
+To enable it:
+```bash
+cd terraform/environments/shared
+terraform apply
+terraform output github_actions_role_arn   # should match the ARN already in ci-cd.yml
+```
+That's it — no GitHub secrets to configure. The next push to `main` deploys to `demo`
+automatically. If you ever change the AWS account or repo name, update both
+`modules/github-oidc`'s `github_repo` input and the `role-to-assume` ARN in
+`ci-cd.yml` to match.
 
 ## Prerequisites
 
