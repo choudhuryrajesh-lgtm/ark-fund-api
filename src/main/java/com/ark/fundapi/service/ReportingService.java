@@ -11,6 +11,8 @@ import com.ark.fundapi.repository.projection.FundInvestorCount;
 import com.ark.fundapi.repository.projection.PartyTypeTotal;
 import com.ark.fundapi.repository.projection.TypeTotal;
 import com.ark.fundapi.web.dto.ReportDtos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true)
 public class ReportingService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportingService.class);
 
     /**
      * Stand-in for "no upper bound" on as-of queries. A concrete far-future
@@ -71,6 +75,7 @@ public class ReportingService {
     // ------------------------------------------------------------------
 
     public ReportDtos.FundReport fundReport(UUID clientId, UUID fundId, LocalDate asOfDate) {
+        log.info("Generating fund report for fund {} (client {}), asOf {}", fundId, clientId, asOfDate);
         Fund fund = fundService.require(clientId, fundId);
         LocalDate effectiveDate = resolve(asOfDate);
         List<TransactionType> allTypes = transactionTypeRepository.findAllByOrderByCodeAsc();
@@ -103,6 +108,7 @@ public class ReportingService {
     // ------------------------------------------------------------------
 
     public ReportDtos.InvestorReport investorReport(UUID clientId, UUID investorId, LocalDate asOfDate) {
+        log.info("Generating investor report for investor {} (client {}), asOf {}", investorId, clientId, asOfDate);
         Investor investor = investorService.require(clientId, investorId);
         LocalDate effectiveDate = resolve(asOfDate);
         List<TransactionType> allTypes = transactionTypeRepository.findAllByOrderByCodeAsc();
@@ -134,6 +140,7 @@ public class ReportingService {
     // ------------------------------------------------------------------
 
     public ReportDtos.ClientPortfolioReport portfolioReport(UUID clientId, LocalDate asOfDate) {
+        log.info("Generating portfolio report for client {}, asOf {}", clientId, asOfDate);
         Client client = clientService.require(clientId);
         LocalDate effectiveDate = resolve(asOfDate);
         List<TransactionType> allTypes = transactionTypeRepository.findAllByOrderByCodeAsc();

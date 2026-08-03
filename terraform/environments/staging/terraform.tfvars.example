@@ -1,0 +1,3 @@
+aws_region  = "us-east-1"
+zone_name   = "ark.com"
+domain_name = "api-staging.ark.com"

@@ -42,30 +42,37 @@ flowchart LR
 flowchart TB
     subgraph VPC["VPC 10.0.0.0/16"]
         subgraph AZa["AZ-a"]
-            PubA[Public subnet<br/>ALB ENI]
-            PrivA[Private subnet<br/>ECS tasks]
+            PubA[Public subnet<br/>NAT Gateway]
+            PrivA[Private subnet<br/>ALB ENI + ECS tasks + VPC Link ENI]
             DataA[Data subnet<br/>RDS primary]
         end
         subgraph AZb["AZ-b"]
-            PubB[Public subnet<br/>ALB ENI]
-            PrivB[Private subnet<br/>ECS tasks]
+            PubB[Public subnet<br/>NAT Gateway]
+            PrivB[Private subnet<br/>ALB ENI + ECS tasks + VPC Link ENI]
             DataB[Data subnet<br/>RDS standby]
         end
-        NAT[NAT Gateway<br/>per AZ]
     end
     IGW[Internet Gateway] --> PubA
     IGW --> PubB
-    PrivA --> NAT
-    PrivB --> NAT
+    PrivA --> PubA
+    PrivB --> PubB
     PrivA --> DataA
     PrivB --> DataA
+    APIGW[API Gateway] -.VPC Link.-> PrivA
+    APIGW -.VPC Link.-> PrivB
     DataA <-.sync replication.-> DataB
 ```
 
-- **Public subnets**: ALB only. Nothing else gets a public IP.
-- **Private (app) subnets**: ECS Fargate tasks. Outbound internet via NAT (for pulling
-  container images, calling Secrets Manager, sending telemetry) but no inbound path except
-  from the ALB security group.
+- **Public subnets**: NAT gateways only — nothing else gets a public IP. Not the ALB: see
+  below.
+- **Private (app) subnets**: the ALB (internal, not internet-facing), ECS Fargate tasks, and
+  the API Gateway VPC Link's ENIs all live here. Outbound internet via NAT (pulling container
+  images, calling Secrets Manager, sending telemetry); inbound only from the ALB's own
+  listener, reachable solely via the VPC Link — there is no public IP anywhere in this tier,
+  so the ALB cannot be reached by anything except API Gateway. An internet-facing ALB here
+  would give callers a second, unthrottled way in that bypasses API Gateway's rate limiting
+  and usage plans — the whole point of fronting it with API Gateway is that there's exactly
+  one public entry point, not two.
 - **Data subnets**: RDS only, reachable solely from the app subnet's security group on
   port 5432. No route to the internet at all.
 - Three AZs in production (diagram shows two for readability) — matches the ECS service's

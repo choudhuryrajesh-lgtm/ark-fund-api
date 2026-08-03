@@ -18,27 +18,34 @@ of a compromised credential is bounded to one environment.
 
 ## 2. Infrastructure as Code
 
-Terraform, structured as:
+Real Terraform, in [`terraform/`](../terraform) — `terraform validate` and `terraform fmt
+-check` clean across all three environments as of the last time it was run, though it has
+not been `apply`'d against a live AWS account. Full runbook: [`terraform/README.md`](../terraform/README.md).
 
 ```
-infra/
+terraform/
 ├── modules/
-│   ├── network/        # VPC, subnets, NAT, IGW, route tables
-│   ├── ecs-service/     # cluster, service, task def template, autoscaling policy
-│   ├── rds/             # instance, Multi-AZ, parameter group, subnet group
-│   ├── alb/              # load balancer, target group, listener rules
-│   └── observability/   # CloudWatch alarms, New Relic integration, Splunk forwarder
-├── environments/
-│   ├── staging/         # module invocations + tfvars for staging sizing
-│   └── production/      # module invocations + tfvars for production sizing
-└── backend.tf           # remote state in S3 + DynamoDB lock table
+│   ├── network/          # VPC, subnets, NAT, IGW, route tables
+│   ├── security-groups/  # alb-sg -> ecs-sg -> rds-sg, chained least-privilege
+│   ├── rds/               # instance, Multi-AZ, subnet group, Secrets Manager credentials
+│   ├── ecr/               # container registry
+│   ├── alb/               # internal load balancer, target group, HTTPS listener
+│   ├── ecs/               # cluster, task definition, service, IAM roles, autoscaling
+│   ├── api-gateway/       # HTTP API + VPC Link into the internal ALB, custom domain
+│   └── dns/               # ACM certificate, DNS-validated against an existing Route 53 zone
+└── environments/
+    ├── shared/             # ECR repo — applied once, independent of staging/production
+    ├── staging/            # full stack, staging sizing
+    └── production/         # full stack, production sizing
 ```
 
-This is an outline, not a built module tree — the repository ships the ECS task
-definitions and CI/CD pipeline that are the actual deploy-time artifacts; the Terraform
-module structure above is the recommended next step for anyone standing up the AWS
-account from scratch, scoped out of this take-home the same way a full Kubernetes
-manifest set would be.
+Not yet built on top of this: production blue/green via CodeDeploy (both environments
+currently get a plain rolling ECS deployment — see `terraform/README.md` for exactly what
+that follow-up needs), WAF in front of API Gateway, and the cross-region DR replica from
+[13-Disaster-Recovery-Failover.md](13-Disaster-Recovery-Failover.md). Observability
+(CloudWatch alarms, New Relic, Splunk forwarding) is also not yet in this Terraform —
+[10-Monitoring-Observability.md](10-Monitoring-Observability.md) describes the target
+design.
 
 **Why Terraform over CDK/CloudFormation:** state-file-based plan/apply gives an explicit
 diff review step before any infrastructure change, which matters for a system touching
@@ -51,8 +58,11 @@ Task definitions differ between staging (0.5 vCPU / 1GB, single-purpose verifica
 production (1 vCPU / 2GB, sized per [02-Capacity-Planning.md](02-Capacity-Planning.md)).
 Both:
 
-- Pull the image from ECR by immutable tag (commit SHA), never `:latest` in the actual
-  running task definition — `:latest` is pushed for convenience/debugging only.
+- Pull the image from ECR by immutable tag (commit SHA) only — the repository is configured
+  with `IMAGE_TAG_MUTABILITY: IMMUTABLE` (see [terraform/modules/ecr](../terraform/modules/ecr)),
+  so a floating `:latest` tag doesn't exist at all: re-pushing it on every build would be
+  rejected once the repo enforces immutability. CI resolves the tag it just pushed and passes
+  it straight through to the render-task-definition step.
 - Inject DB credentials from Secrets Manager via the `secrets` block, not plaintext
   `environment` entries.
 - Define a container health check independent of the ALB's — ECS can restart an unhealthy
@@ -65,9 +75,15 @@ Security groups:
 
 | Security group | Inbound | Outbound |
 |---|---|---|
-| `alb-sg` | 443 from `0.0.0.0/0` (API Gateway VPC link or public, depending on API Gateway integration type) | 8083 to `ecs-sg` |
+| `alb-sg` | 443 from the VPC CIDR only — the ALB is internal (never `0.0.0.0/0`; see below) | 8083 to `ecs-sg` |
 | `ecs-sg` | 8083 from `alb-sg` only | 5432 to `rds-sg`, 443 to internet (via NAT, for ECR pulls and telemetry) |
 | `rds-sg` | 5432 from `ecs-sg` only | none |
+
+**The ALB is internal, not internet-facing.** API Gateway is the sole public entry point;
+it reaches the ALB through a VPC Link, whose ENIs are provisioned inside this VPC. An
+internet-facing ALB here would give callers a second, unthrottled path in that bypasses API
+Gateway's rate limiting and usage plans — the entire reason to front ECS with API Gateway
+is that there's exactly one public door, not two.
 
 No security group permits inbound from `0.0.0.0/0` except the ALB's public listener —
 every other hop is locked to its specific caller.
@@ -83,8 +99,12 @@ cutover.
 aws deploy stop-deployment --deployment-id <id> --auto-rollback-enabled
 ```
 
-**Emergency manual deploy** (CI/CD pipeline unavailable):
+**Emergency manual deploy** (CI/CD pipeline unavailable). The checked-in task definition
+carries a `REPLACE_WITH_COMMIT_SHA` placeholder — since the ECR repo is immutable-tagged,
+there's no `:latest` to fall back on, so substitute the exact tag of a known-good image
+(check ECR directly if unsure which commit last deployed cleanly):
 ```
+sed -i '' 's/REPLACE_WITH_COMMIT_SHA/<known-good-commit-sha>/' deploy/ecs/task-definition.production.json
 aws ecs register-task-definition --cli-input-json file://deploy/ecs/task-definition.production.json
 aws ecs update-service --cluster ark-fund-production --service ark-fund-api-production \
   --task-definition ark-fund-api-production --force-new-deployment

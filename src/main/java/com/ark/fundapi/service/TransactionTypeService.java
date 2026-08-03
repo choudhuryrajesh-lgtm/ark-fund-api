@@ -3,14 +3,22 @@ package com.ark.fundapi.service;
 import com.ark.fundapi.domain.TransactionType;
 import com.ark.fundapi.exception.ResourceNotFoundException;
 import com.ark.fundapi.repository.TransactionTypeRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Reference-data lookup for the DB-backed transaction types (extensible in
+ * place of a fixed enum — see the {@code transaction_types} table).
+ */
 @Service
 @Transactional(readOnly = true)
 public class TransactionTypeService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionTypeService.class);
 
     private final TransactionTypeRepository transactionTypeRepository;
 
@@ -36,7 +44,10 @@ public class TransactionTypeService {
     public TransactionType require(String code) {
         return transactionTypeRepository.findById(code)
                 .filter(TransactionType::isActive)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Transaction type '%s' was not found or is not active".formatted(code)));
+                .orElseThrow(() -> {
+                    log.warn("Rejected use of unknown or retired transaction type '{}'", code);
+                    return new ResourceNotFoundException(
+                            "Transaction type '%s' was not found or is not active".formatted(code));
+                });
     }
 }

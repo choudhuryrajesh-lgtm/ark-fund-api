@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { formatMoney } from "../format";
+import TypePill from "./TypePill";
 
 export default function ReportsPanel({ clientId }) {
   const [view, setView] = useState("portfolio");
   const [funds, setFunds] = useState([]);
   const [investors, setInvestors] = useState([]);
+  const [directionByType, setDirectionByType] = useState({});
   const [selectedFundId, setSelectedFundId] = useState("");
   const [selectedInvestorId, setSelectedInvestorId] = useState("");
   const [report, setReport] = useState(null);
@@ -15,6 +17,10 @@ export default function ReportsPanel({ clientId }) {
   useEffect(() => {
     api.listFunds(clientId).then((p) => setFunds(p.content)).catch(() => {});
     api.listInvestors(clientId).then((p) => setInvestors(p.content)).catch(() => {});
+    api
+      .listTransactionTypes()
+      .then((types) => setDirectionByType(Object.fromEntries(types.map((t) => [t.code, t.direction]))))
+      .catch(() => {});
     setSelectedFundId("");
     setSelectedInvestorId("");
     setReport(null);
@@ -105,26 +111,24 @@ export default function ReportsPanel({ clientId }) {
 
       {!loading && report && (
         <div className="report">
-          <div className="totals-grid">
-            <div>
-              <span className="label">As of</span>
-              <span>{report.asOfDate}</span>
+          <p className="hint">As of {report.asOfDate}</p>
+
+          <div className="stat-grid">
+            <div className="stat-tile credit">
+              <span className="stat-label">Credits</span>
+              <span className="stat-value">{formatMoney(report.totals.totalCredits)}</span>
             </div>
-            <div>
-              <span className="label">Credits</span>
-              <span className="num">{formatMoney(report.totals.totalCredits)}</span>
+            <div className="stat-tile debit">
+              <span className="stat-label">Debits</span>
+              <span className="stat-value">{formatMoney(report.totals.totalDebits)}</span>
             </div>
-            <div>
-              <span className="label">Debits</span>
-              <span className="num">{formatMoney(report.totals.totalDebits)}</span>
-            </div>
-            <div>
-              <span className="label">Net</span>
-              <span className="num strong">{formatMoney(report.totals.netBalance)}</span>
+            <div className="stat-tile net">
+              <span className="stat-label">Net balance</span>
+              <span className="stat-value">{formatMoney(report.totals.netBalance)}</span>
             </div>
           </div>
 
-          <h4>By type</h4>
+          <p className="section-label">By type</p>
           <table>
             <thead>
               <tr>
@@ -135,7 +139,9 @@ export default function ReportsPanel({ clientId }) {
             <tbody>
               {Object.entries(report.totals.byType).map(([type, amount]) => (
                 <tr key={type}>
-                  <td>{type}</td>
+                  <td>
+                    <TypePill type={type} direction={directionByType[type]} />
+                  </td>
                   <td className="num">{formatMoney(amount)}</td>
                 </tr>
               ))}
@@ -144,7 +150,7 @@ export default function ReportsPanel({ clientId }) {
 
           {report.investorPositions && (
             <>
-              <h4>Investor positions</h4>
+              <p className="section-label">Investor positions</p>
               <table>
                 <thead>
                   <tr>
@@ -166,7 +172,7 @@ export default function ReportsPanel({ clientId }) {
 
           {report.fundPositions && (
             <>
-              <h4>Fund positions</h4>
+              <p className="section-label">Fund positions</p>
               <table>
                 <thead>
                   <tr>
@@ -188,7 +194,7 @@ export default function ReportsPanel({ clientId }) {
 
           {report.funds && (
             <>
-              <h4>Funds</h4>
+              <p className="section-label">Funds</p>
               <table>
                 <thead>
                   <tr>

@@ -7,6 +7,8 @@ import com.ark.fundapi.exception.ResourceNotFoundException;
 import com.ark.fundapi.repository.InvestorRepository;
 import com.ark.fundapi.repository.TransactionRepository;
 import com.ark.fundapi.web.dto.InvestorDtos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -14,9 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/** Investor CRUD, scoped to its owning client throughout — see {@link #require}. */
 @Service
 @Transactional(readOnly = true)
 public class InvestorService {
+
+    private static final Logger log = LoggerFactory.getLogger(InvestorService.class);
 
     private final InvestorRepository investorRepository;
     private final TransactionRepository transactionRepository;
@@ -35,10 +40,13 @@ public class InvestorService {
         Client client = clientService.require(clientId);
         String email = request.email().trim().toLowerCase();
         if (investorRepository.existsByClientIdAndEmailIgnoreCase(clientId, email)) {
+            log.warn("Rejected investor creation for client {}: email already registered", clientId);
             throw new BusinessRuleException("An investor already exists with email " + email);
         }
         Investor investor = new Investor(client, request.name().trim(), email);
-        return InvestorDtos.Response.from(investorRepository.save(investor));
+        investor = investorRepository.save(investor);
+        log.info("Created investor {} for client {}", investor.getId(), clientId);
+        return InvestorDtos.Response.from(investor);
     }
 
     public Page<InvestorDtos.Response> list(UUID clientId, Pageable pageable) {
@@ -55,10 +63,12 @@ public class InvestorService {
         Investor investor = require(clientId, investorId);
         String email = request.email().trim().toLowerCase();
         if (investorRepository.existsByClientIdAndEmailIgnoreCaseAndIdNot(clientId, email, investorId)) {
+            log.warn("Rejected update for investor {}: email already registered", investorId);
             throw new BusinessRuleException("An investor already exists with email " + email);
         }
         investor.setName(request.name().trim());
         investor.setEmail(email);
+        log.info("Updated investor {}", investorId);
         return InvestorDtos.Response.from(investor);
     }
 
@@ -66,10 +76,12 @@ public class InvestorService {
     public void delete(UUID clientId, UUID investorId) {
         Investor investor = require(clientId, investorId);
         if (transactionRepository.existsByInvestorId(investorId)) {
+            log.warn("Rejected deletion of investor {}: has existing transactions", investorId);
             throw new BusinessRuleException(
                     "Investor cannot be deleted because they have transactions. Transactions must be removed first.");
         }
         investorRepository.delete(investor);
+        log.info("Deleted investor {}", investorId);
     }
 
     /** Loads an investor scoped to their client, or throws 404. */

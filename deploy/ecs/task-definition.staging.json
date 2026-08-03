@@ -9,7 +9,7 @@
   "containerDefinitions": [
     {
       "name": "ark-fund-api",
-      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/ark-fund-api:latest",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/ark-fund-api:REPLACE_WITH_COMMIT_SHA",
       "essential": true,
       "portMappings": [{ "containerPort": 8083, "protocol": "tcp" }],
       "environment": [
@@ -17,9 +17,9 @@
         { "name": "AWS_REGION", "value": "us-east-1" }
       ],
       "secrets": [
-        { "name": "DB_URL", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-url" },
-        { "name": "DB_USERNAME", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-username" },
-        { "name": "DB_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/db-password" }
+        { "name": "SPRING_DATASOURCE_URL", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/spring-datasource-url" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/spring-datasource-username" },
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-1:ACCOUNT_ID:secret:ark-fund-api/staging/spring-datasource-password" }
       ],
       "healthCheck": {
         "command": ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"],

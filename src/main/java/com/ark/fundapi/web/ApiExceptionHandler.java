@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -86,6 +87,18 @@ public class ApiExceptionHandler {
 
     private static boolean isLocalDate(MethodArgumentTypeMismatchException ex) {
         return ex.getRequiredType() != null && ex.getRequiredType().equals(LocalDate.class);
+    }
+
+    /**
+     * No route matches the request path at all — Spring's own fallback for an
+     * unmapped GET. Client input (a bad URL), so 404, not the 500 catch-all
+     * below; without this handler it falls through to the generic
+     * Exception handler and gets misreported as a 500.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ProblemDetail handleNoResourceFound(NoResourceFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "Not found",
+                "No endpoint matches this path.", "no-such-endpoint");
     }
 
     /**

@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored) and fill in your own values.
+aws_region  = "us-east-1"
+zone_name   = "ark.com"
+domain_name = "api.ark.com"

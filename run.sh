@@ -33,7 +33,7 @@ done
 
 if [ "${api_up}" != "true" ]; then
     echo
-    echo "API did not become healthy within ${MAX_WAIT_SECONDS}s." >&2
+    echo "API did not become healthy 1 ${MAX_WAIT_SECONDS}s." >&2
     echo "Most likely cause: a race on the very first cold start of the" >&2
     echo "database container (docker-compose.yml has a restart policy for" >&2
     echo "exactly this — one more run usually clears it):" >&2

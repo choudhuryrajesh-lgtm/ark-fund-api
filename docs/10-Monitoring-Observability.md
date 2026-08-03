@@ -4,6 +4,12 @@ Combines the "monitoring" and "observability / New Relic / Splunk / reporting to
 they're one concern in practice: knowing whether the system is healthy, and being able to
 answer why when it isn't.
 
+**Implementation status:** New Relic APM (metrics, error tracking, distributed tracing —
+§1–2 below) is actually built and running, not just designed — see §1a for how. Splunk log
+forwarding, PagerDuty paging, the business-reporting dashboard, and synthetic monitoring
+remain design-only, the same "not yet built" status as the rest of this document until
+called out otherwise.
+
 ## 1. The three pillars, and where each lives
 
 | Pillar | Tool | Purpose |
@@ -22,6 +28,31 @@ flowchart LR
     NR --> AL[Alerting: PagerDuty/Slack]
     SPL --> AL
 ```
+
+## 1a. How the New Relic agent actually gets there
+
+- **Bundled at build time, activated at deploy time.** The Docker image has its own build
+  stage that fetches the New Relic Java agent and copies `newrelic.jar` into every image —
+  see the `newrelic-agent` stage in the `Dockerfile`. It's present in every build,
+  including local `docker compose up`, but inert by default: nothing loads it unless
+  `JAVA_TOOL_OPTIONS=-javaagent:/app/newrelic/newrelic.jar` is set, which only happens in
+  environments that opt in (below). Bundling unconditionally, activating conditionally,
+  means there's one image build path, not a "monitored" and "unmonitored" image to keep in
+  sync.
+- **Per-environment opt-in, not global.** `terraform/modules/ecs` takes an optional
+  `new_relic_license_key` variable (default `null`). When set, it creates a Secrets Manager
+  secret (`ark-fund-api/{environment}/new-relic-license-key`), grants the task's execution
+  role `secretsmanager:GetSecretValue` scoped to just that one secret (same least-privilege
+  pattern as the three DB credentials), and adds `NEW_RELIC_LICENSE_KEY` (from the secret),
+  `NEW_RELIC_APP_NAME`, `NEW_RELIC_LOG=stdout`, and the `JAVA_TOOL_OPTIONS` line above to
+  the container definition. Leave the variable unset and none of this exists — no secret,
+  no IAM grant, no env vars, agent stays dormant.
+- **Agent logs land in the same place app logs do.** `NEW_RELIC_LOG=stdout` routes the
+  agent's own connection/init logging through the same `awslogs` driver as the application
+  (`/ecs/{environment}` log group) — one CloudWatch log group to check, not two.
+- **Config is entirely environment variables, no `newrelic.yml` edits.** The agent reads
+  `NEW_RELIC_LICENSE_KEY`/`NEW_RELIC_APP_NAME` directly; nothing environment-specific is
+  baked into the image.
 
 ## 2. Key metrics and SLOs
 

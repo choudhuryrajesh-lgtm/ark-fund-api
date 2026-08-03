@@ -42,23 +42,26 @@ export default function FundsPanel({ clientId }) {
   return (
     <div className="panel">
       <form onSubmit={handleSubmit} className="inline-form wrap">
-        <input
-          placeholder="Fund name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Description (optional)"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-        <input
-          type="date"
-          value={form.inceptionDate}
-          onChange={(e) => setForm({ ...form, inceptionDate: e.target.value })}
-          required
-        />
+        <label className="field">
+          Fund name
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </label>
+        <label className="field">
+          Description
+          <input
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <label className="field">
+          Inception date
+          <input
+            type="date"
+            value={form.inceptionDate}
+            onChange={(e) => setForm({ ...form, inceptionDate: e.target.value })}
+            required
+          />
+        </label>
         <button type="submit" disabled={submitting}>
           {submitting ? "Adding…" : "Add fund"}
         </button>

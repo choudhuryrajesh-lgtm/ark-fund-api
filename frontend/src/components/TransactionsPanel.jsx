@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { formatMoney } from "../format";
+import TypePill from "./TypePill";
 
 const EMPTY_FORM = { fundId: "", investorId: "", type: "", amount: "", transactionDate: "", notes: "" };
 
@@ -64,58 +65,74 @@ export default function TransactionsPanel({ clientId }) {
       )}
 
       <form onSubmit={handleSubmit} className="inline-form wrap">
-        <select
-          value={form.fundId}
-          onChange={(e) => setForm({ ...form, fundId: e.target.value })}
-          required
-        >
-          <option value="">Fund…</option>
-          {funds.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
-        <select
-          value={form.investorId}
-          onChange={(e) => setForm({ ...form, investorId: e.target.value })}
-          required
-        >
-          <option value="">Investor…</option>
-          {investors.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.name}
-            </option>
-          ))}
-        </select>
-        <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} required>
-          <option value="">Type…</option>
-          {types.map((t) => (
-            <option key={t.code} value={t.code}>
-              {t.code} ({t.direction})
-            </option>
-          ))}
-        </select>
-        <input
-          type="number"
-          step="0.01"
-          min="0.01"
-          placeholder="Amount"
-          value={form.amount}
-          onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          required
-        />
-        <input
-          type="date"
-          value={form.transactionDate}
-          onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Notes (optional)"
-          value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
-        />
+        <label className="field">
+          Fund
+          <select
+            value={form.fundId}
+            onChange={(e) => setForm({ ...form, fundId: e.target.value })}
+            required
+          >
+            <option value="">Select…</option>
+            {funds.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Investor
+          <select
+            value={form.investorId}
+            onChange={(e) => setForm({ ...form, investorId: e.target.value })}
+            required
+          >
+            <option value="">Select…</option>
+            {investors.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Type
+          <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} required>
+            <option value="">Select…</option>
+            {types.map((t) => (
+              <option key={t.code} value={t.code}>
+                {t.code} ({t.direction})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Amount
+          <input
+            type="number"
+            step="0.01"
+            min="0.01"
+            value={form.amount}
+            onChange={(e) => setForm({ ...form, amount: e.target.value })}
+            required
+          />
+        </label>
+        <label className="field">
+          Date
+          <input
+            type="date"
+            value={form.transactionDate}
+            onChange={(e) => setForm({ ...form, transactionDate: e.target.value })}
+            required
+          />
+        </label>
+        <label className="field">
+          Notes
+          <input
+            value={form.notes}
+            onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </label>
         <button type="submit" disabled={submitting || noPartiesYet}>
           {submitting ? "Recording…" : "Record transaction"}
         </button>
@@ -139,7 +156,9 @@ export default function TransactionsPanel({ clientId }) {
               <td>{t.transactionDate}</td>
               <td>{t.fundName}</td>
               <td>{t.investorName}</td>
-              <td>{t.type}</td>
+              <td>
+                <TypePill type={t.type} direction={t.direction} />
+              </td>
               <td className="num">{formatMoney(t.amount)}</td>
               <td>{t.notes ?? "—"}</td>
             </tr>

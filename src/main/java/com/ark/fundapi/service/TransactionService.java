@@ -9,6 +9,8 @@ import com.ark.fundapi.exception.BusinessRuleException;
 import com.ark.fundapi.exception.ResourceNotFoundException;
 import com.ark.fundapi.repository.TransactionRepository;
 import com.ark.fundapi.web.dto.TransactionDtos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,9 +21,19 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.UUID;
 
+/**
+ * Transaction CRUD and the cross-tenant integrity check that matters most in
+ * this API: a fund and an investor from two different clients can never be
+ * linked by a transaction (see {@link #create}).
+ *
+ * <p>Log lines here carry entity IDs only — never amounts, per the logging
+ * policy in docs/10-Monitoring-Observability.md.
+ */
 @Service
 @Transactional(readOnly = true)
 public class TransactionService {
+
+    private static final Logger log = LoggerFactory.getLogger(TransactionService.class);
 
     private static final int MONEY_SCALE = 2;
 
@@ -66,7 +78,10 @@ public class TransactionService {
                 request.transactionDate(),
                 request.notes()
         );
-        return TransactionDtos.Response.from(transactionRepository.save(transaction));
+        transaction = transactionRepository.save(transaction);
+        log.info("Created transaction {} (type {}) for client {}, fund {}, investor {}",
+                transaction.getId(), type.getCode(), clientId, fund.getId(), investor.getId());
+        return TransactionDtos.Response.from(transaction);
     }
 
     public Page<TransactionDtos.Response> list(UUID clientId, UUID fundId, UUID investorId, Pageable pageable) {
@@ -98,12 +113,14 @@ public class TransactionService {
         transaction.setAmount(normalize(request.amount()));
         transaction.setTransactionDate(request.transactionDate());
         transaction.setNotes(request.notes());
+        log.info("Updated transaction {}", transactionId);
         return TransactionDtos.Response.from(transaction);
     }
 
     @Transactional
     public void delete(UUID clientId, UUID transactionId) {
         transactionRepository.delete(require(clientId, transactionId));
+        log.info("Deleted transaction {}", transactionId);
     }
 
     private Transaction require(UUID clientId, UUID transactionId) {
@@ -117,6 +134,8 @@ public class TransactionService {
         // money in a vehicle that did not exist yet and skew any as-of report
         // run against an earlier date.
         if (transactionDate.isBefore(fund.getInceptionDate())) {
+            log.warn("Rejected transaction for fund {}: date {} precedes inception date {}",
+                    fund.getId(), transactionDate, fund.getInceptionDate());
             throw new BusinessRuleException(
                     "Transaction date %s is before the fund's inception date %s"
                             .formatted(transactionDate, fund.getInceptionDate()));

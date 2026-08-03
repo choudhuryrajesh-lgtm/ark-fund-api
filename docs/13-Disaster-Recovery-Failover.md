@@ -88,4 +88,5 @@ is actually for: reconstructing the pre-mutation state of a specific row without
 full-database point-in-time restore, which would roll back every *other* client's correct
 transactions along with the one bad row. PITR (§2) is the blunt instrument for
 infrastructure-level corruption; the audit trail is the precise instrument for
-application-level mistakes — a financial ledger needs both.
+application-level mistakes — a financial ledger need
+s both.

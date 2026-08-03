@@ -42,19 +42,19 @@ export default function InvestorsPanel({ clientId }) {
   return (
     <div className="panel">
       <form onSubmit={handleSubmit} className="inline-form wrap">
-        <input
-          placeholder="Investor name"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          required
-        />
-        <input
-          placeholder="Email"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-          required
-        />
+        <label className="field">
+          Investor name
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+        </label>
+        <label className="field">
+          Email
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
+          />
+        </label>
         <button type="submit" disabled={submitting}>
           {submitting ? "Adding…" : "Add investor"}
         </button>

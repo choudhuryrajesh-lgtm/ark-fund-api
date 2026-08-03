@@ -7,6 +7,8 @@ import com.ark.fundapi.exception.ResourceNotFoundException;
 import com.ark.fundapi.repository.FundRepository;
 import com.ark.fundapi.repository.TransactionRepository;
 import com.ark.fundapi.web.dto.FundDtos;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -14,9 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+/** Fund CRUD, scoped to its owning client throughout — see {@link #require}. */
 @Service
 @Transactional(readOnly = true)
 public class FundService {
+
+    private static final Logger log = LoggerFactory.getLogger(FundService.class);
 
     private final FundRepository fundRepository;
     private final TransactionRepository transactionRepository;
@@ -35,10 +40,13 @@ public class FundService {
         Client client = clientService.require(clientId);
         String name = request.name().trim();
         if (fundRepository.existsByClientIdAndNameIgnoreCase(clientId, name)) {
+            log.warn("Rejected fund creation for client {}: name already in use", clientId);
             throw new BusinessRuleException("A fund named '%s' already exists for this client".formatted(name));
         }
         Fund fund = new Fund(client, name, trimToNull(request.description()), request.inceptionDate());
-        return FundDtos.Response.from(fundRepository.save(fund));
+        fund = fundRepository.save(fund);
+        log.info("Created fund {} for client {}", fund.getId(), clientId);
+        return FundDtos.Response.from(fund);
     }
 
     public Page<FundDtos.Response> list(UUID clientId, Pageable pageable) {
@@ -55,11 +63,13 @@ public class FundService {
         Fund fund = require(clientId, fundId);
         String name = request.name().trim();
         if (fundRepository.existsByClientIdAndNameIgnoreCaseAndIdNot(clientId, name, fundId)) {
+            log.warn("Rejected update for fund {}: name already in use", fundId);
             throw new BusinessRuleException("A fund named '%s' already exists for this client".formatted(name));
         }
         fund.setName(name);
         fund.setDescription(trimToNull(request.description()));
         fund.setInceptionDate(request.inceptionDate());
+        log.info("Updated fund {}", fundId);
         return FundDtos.Response.from(fund);
     }
 
@@ -70,10 +80,12 @@ public class FundService {
         // it would orphan investor history, so this is refused outright —
         // closing a fund is a lifecycle change (a status field), not a delete.
         if (transactionRepository.existsByFundId(fundId)) {
+            log.warn("Rejected deletion of fund {}: has existing transactions", fundId);
             throw new BusinessRuleException(
                     "Fund cannot be deleted because it has transactions. Transactions must be removed first.");
         }
         fundRepository.delete(fund);
+        log.info("Deleted fund {}", fundId);
     }
 
     /** Loads a fund scoped to its client, or throws 404. */

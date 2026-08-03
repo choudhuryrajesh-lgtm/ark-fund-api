@@ -1,11 +1,22 @@
 import { useState } from "react";
 
+function initials(name) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
 export default function ClientPicker({ clients, selectedClientId, onSelect, onCreated }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const selected = clients.find((c) => c.id === selectedClientId);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -26,33 +37,36 @@ export default function ClientPicker({ clients, selectedClientId, onSelect, onCr
   return (
     <div className="card">
       <div className="card-header">
-        <h2>Client</h2>
+        <p className="eyebrow">Client</p>
         <button className="link-button" onClick={() => setShowForm((v) => !v)}>
           {showForm ? "Cancel" : "+ New client"}
         </button>
       </div>
 
       {!showForm && (
-        <select value={selectedClientId ?? ""} onChange={(e) => onSelect(e.target.value || null)}>
-          <option value="">Select a client…</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+        <div className="client-select-row">
+          <div className="client-avatar">{selected ? initials(selected.name) : "—"}</div>
+          <select value={selectedClientId ?? ""} onChange={(e) => onSelect(e.target.value || null)}>
+            <option value="">Select a client…</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
       )}
 
       {showForm && (
         <form onSubmit={handleSubmit} className="inline-form">
-          <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <input
-            placeholder="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <label className="field">
+            Name
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </label>
+          <label className="field">
+            Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
           <button type="submit" disabled={submitting}>
             {submitting ? "Creating…" : "Create"}
           </button>

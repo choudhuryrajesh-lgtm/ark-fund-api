@@ -1,11 +1,79 @@
+/* ── Design tokens ──────────────────────────────────────────────────────
+   A "ledger" identity for a fund-accounting product: deep teal-green as
+   the working accent (trust, capital, growth), warm gold held in reserve
+   for emphasis only, and a serif display face paired with a plain system
+   sans so headings read with some gravitas without tipping into pastiche.
+   Numbers and codes get a monospace face with tabular figures throughout —
+   this is a ledger; columns of digits must line up. */
 :root {
-  --bg: #f7f8fa;
-  --card-bg: #ffffff;
-  --border: #e0e3e8;
-  --text: #1a1d23;
-  --muted: #6b7280;
-  --accent: #1f7a66;
-  --error: #b3261e;
+  --paper: #f6f7f5;
+  --surface: #ffffff;
+  --surface-muted: #eef2ef;
+  --border: #dce3dd;
+  --border-strong: #c7d1c9;
+
+  --ink: #172119;
+  --ink-soft: #48564c;
+  --muted: #71807a;
+
+  --accent: #1b6e5c;
+  --accent-strong: #12503f;
+  --accent-soft: #e3f1ea;
+  --accent-ink: #ffffff;
+
+  --gold: #9c6b14;
+  --gold-soft: #f6ead2;
+
+  --credit: #1b6e5c;
+  --credit-soft: #e3f1ea;
+  --debit: #a23b2e;
+  --debit-soft: #f7e6e2;
+
+  --error: #a23b2e;
+  --error-soft: #f7e6e2;
+
+  --shadow-sm: 0 1px 2px rgba(23, 33, 25, 0.05);
+  --shadow-md: 0 1px 2px rgba(23, 33, 25, 0.04), 0 8px 24px -12px rgba(23, 33, 25, 0.16);
+
+  --font-display: ui-serif, "Iowan Old Style", "Palatino Linotype", "Georgia", serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1512;
+    --surface: #161e1a;
+    --surface-muted: #1c2521;
+    --border: #283530;
+    --border-strong: #37473f;
+
+    --ink: #e9efe9;
+    --ink-soft: #b8c6bd;
+    --muted: #8aa096;
+
+    --accent: #4fb89b;
+    --accent-strong: #6fcdb2;
+    --accent-soft: #17342c;
+    --accent-ink: #08211a;
+
+    --gold: #d9ac52;
+    --gold-soft: #2b2414;
+
+    --credit: #4fb89b;
+    --credit-soft: #17342c;
+    --debit: #e2897c;
+    --debit-soft: #331d19;
+
+    --error: #e2897c;
+    --error-soft: #331d19;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+  }
 }
 
 * {
@@ -14,50 +82,106 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14.5px;
+  -webkit-font-smoothing: antialiased;
 }
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* ── Shell ────────────────────────────────────────────────────────── */
 
 .app {
-  max-width: 960px;
+  max-width: 1040px;
   margin: 0 auto;
-  padding: 32px 20px 64px;
+  padding: 0 24px 72px;
 }
 
-header h1 {
-  font-size: 22px;
-  margin: 0 0 4px;
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 32px 0 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.wordmark .mark {
+  font-family: var(--font-display);
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.wordmark .mark em {
+  font-style: normal;
+  color: var(--accent);
+}
+
+.wordmark .kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px 9px;
 }
 
 .subtitle {
   color: var(--muted);
-  font-size: 13px;
-  margin: 0 0 24px;
+  font-size: 12.5px;
+  margin: 0;
+  max-width: 46ch;
 }
+
+.subtitle code {
+  background: var(--surface-muted);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* ── Cards & panels ───────────────────────────────────────────────── */
 
 .card,
 .panel {
-  background: var(--card-bg);
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px 20px;
-  margin-bottom: 20px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  padding: 18px 22px;
+  margin-bottom: 22px;
 }
 
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
-.card-header h2 {
-  font-size: 13px;
-  margin: 0;
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--muted);
+  margin: 0;
 }
 
 .link-button {
@@ -66,37 +190,105 @@ header h1 {
   color: var(--accent);
   cursor: pointer;
   font-size: 13px;
+  font-weight: 600;
   padding: 0;
+}
+
+.link-button:hover {
+  color: var(--accent-strong);
+}
+
+/* ── Client picker ────────────────────────────────────────────────── */
+
+.client-select-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.client-avatar {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-select-row select {
+  flex: 1;
+}
+
+/* ── Forms ────────────────────────────────────────────────────────── */
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
 }
 
 select,
 input {
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 14px;
-  background: white;
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+select:focus-visible,
+input:focus-visible,
+button:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .inline-form {
   display: flex;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
+  align-items: flex-end;
 }
 
 .inline-form.wrap {
   flex-wrap: wrap;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 button[type="submit"] {
   background: var(--accent);
-  color: white;
+  color: var(--accent-ink);
   border: none;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.12s ease;
+  height: 37px;
+}
+
+button[type="submit"]:hover:not(:disabled) {
+  background: var(--accent-strong);
 }
 
 button[type="submit"]:disabled {
@@ -104,61 +296,87 @@ button[type="submit"]:disabled {
   cursor: default;
 }
 
+/* ── Nav / tabs ───────────────────────────────────────────────────── */
+
 .tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
 }
 
 .tabs button,
 .report-tabs button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   background: none;
   border: none;
   padding: 10px 16px;
-  font-size: 14px;
+  font-size: 13.5px;
+  font-weight: 500;
   cursor: pointer;
   color: var(--muted);
   border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.tabs button:hover,
+.report-tabs button:hover {
+  color: var(--ink-soft);
 }
 
 .tabs button.active,
 .report-tabs button.active {
-  color: var(--accent);
+  color: var(--accent-strong);
   border-bottom-color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.tabs .tab-icon {
+  width: 15px;
+  height: 15px;
+  opacity: 0.85;
 }
 
 .report-tabs {
   display: flex;
   gap: 4px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
+
+/* ── Tables ───────────────────────────────────────────────────────── */
 
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 12px;
-  font-size: 14px;
+  margin-top: 14px;
+  font-size: 13.5px;
 }
 
 th,
 td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--border);
 }
 
 th {
   color: var(--muted);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
+}
+
+tbody tr:hover td {
+  background: var(--surface-muted);
 }
 
 .num {
   text-align: right;
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -173,6 +391,7 @@ th {
 
 .empty {
   text-align: center;
+  padding: 22px 10px;
 }
 
 .hint {
@@ -182,34 +401,118 @@ th {
 
 .error {
   color: var(--error);
+  background: var(--error-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
   font-size: 13px;
   margin: 8px 0;
 }
 
-.totals-grid {
+/* ── Pills (transaction type / direction) ────────────────────────── */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pill::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.pill.credit {
+  color: var(--credit);
+  background: var(--credit-soft);
+}
+
+.pill.debit {
+  color: var(--debit);
+  background: var(--debit-soft);
+}
+
+/* ── Report stat tiles ────────────────────────────────────────────── */
+
+.stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
-.totals-grid > div {
+.stat-tile {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
-.totals-grid .label {
-  font-size: 11px;
+.stat-tile .stat-label {
+  font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--muted);
+  font-weight: 600;
 }
 
-h4 {
-  font-size: 12px;
+.stat-tile .stat-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stat-tile.credit .stat-value {
+  color: var(--credit);
+}
+
+.stat-tile.debit .stat-value {
+  color: var(--debit);
+}
+
+.stat-tile.net .stat-value {
+  color: var(--ink);
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
   color: var(--muted);
-  margin: 20px 0 4px;
+  margin: 22px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+@media (max-width: 640px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

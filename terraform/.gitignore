@@ -1,0 +1,11 @@
+**/.terraform/
+# .terraform.lock.hcl is deliberately NOT ignored — it pins the exact
+# provider versions Terraform resolved, and Terraform's own convention is to
+# commit it for reproducible applies across machines.
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+override.tf
+override.tf.json
