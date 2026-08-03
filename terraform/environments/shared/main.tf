@@ -16,7 +16,12 @@ module "ecr" {
 module "github_oidc" {
   source = "../../modules/github-oidc"
 
-  github_repo        = "choudhuryrajesh-lgtm/ark-fund-api"
+  # GitHub's OIDC "sub" claim embeds immutable numeric IDs for the owner and
+  # repo (repo:OWNER@OWNER_ID/REPO@REPO_ID:...), not just their names — a
+  # deliberate hardening so a renamed/deleted-and-recreated repo can't
+  # inherit an old trust policy. Confirmed against the actual token via a
+  # temporary debug step in ci-cd.yml rather than assumed.
+  github_repo        = "choudhuryrajesh-lgtm@295211991/ark-fund-api@1319656955"
   ecr_repository_arn = module.ecr.repository_arn
 
   # Scoped to demo today — the only environment CI/CD actually deploys to

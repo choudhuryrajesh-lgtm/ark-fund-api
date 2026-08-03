@@ -57,29 +57,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # TEMPORARY — remove once the OIDC assume-role failure is resolved.
-      # Prints the actual token claims GitHub issues for this run, so they
-      # can be compared byte-for-byte against the IAM role's trust policy
-      # instead of guessing. JWT payloads aren't encrypted, only signed, so
-      # printing aud/sub/repository/ref isn't a secret disclosure.
-      - name: Debug OIDC token claims
-        run: |
-          curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
-            -o /tmp/oidc_token_response.json
-          python3 - <<'PYEOF'
-          import json, base64
-
-          with open("/tmp/oidc_token_response.json") as f:
-              resp = json.load(f)
-          token = resp["value"]
-          payload_b64 = token.split(".")[1]
-          payload_b64 += "=" * (-len(payload_b64) % 4)
-          payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-          keys = ("aud", "sub", "iss", "repository", "ref", "repository_owner")
-          print(json.dumps({k: payload[k] for k in keys if k in payload}, indent=2))
-          PYEOF
-
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
