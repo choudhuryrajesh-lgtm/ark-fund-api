@@ -115,6 +115,11 @@ jobs:
     needs: build-image
     runs-on: ubuntu-latest
     environment: staging
+    # Disabled until terraform/environments/staging is actually applied —
+    # the task definition still has ACCOUNT_ID/domain placeholders (see
+    # deploy/ecs/task-definition.staging.json), so this job would fail every
+    # run otherwise. Delete this line once staging is real.
+    if: false
     steps:
       - uses: actions/checkout@v4
 
@@ -152,6 +157,9 @@ jobs:
     needs: deploy-staging
     runs-on: ubuntu-latest
     environment: production   # requires manual approval — see 05-CICD.md §4
+    # Disabled for the same reason as deploy-staging above (which this also
+    # transitively skips via `needs`) — explicit here too for clarity.
+    if: false
     steps:
       - uses: actions/checkout@v4
 
