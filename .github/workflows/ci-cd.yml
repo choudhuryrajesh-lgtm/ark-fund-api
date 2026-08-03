@@ -67,13 +67,25 @@ jobs:
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Registers binfmt_misc handlers so the RUN steps in the Dockerfile
+      # (mvn, apk add) can actually execute under ARM64 emulation on this
+      # x86_64 runner — without this, --platform linux/arm64 below fails or
+      # silently builds the wrong architecture.
+      - name: Set up QEMU (for ARM64 cross-build)
+        uses: docker/setup-qemu-action@v3
+
       - name: Build, tag, push
         id: image
         env:
           REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build --build-arg INCLUDE_NEW_RELIC=true -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          # --platform linux/arm64 required: GitHub's ubuntu-latest runners
+          # are x86_64, but the ECS task definitions (modules/ecs, and
+          # deploy/ecs/task-definition.*.json) request ARM64/Graviton —
+          # without this, the pushed image is the wrong architecture and
+          # every task fails immediately at exec (exit code 255).
+          docker build --platform linux/arm64 --build-arg INCLUDE_NEW_RELIC=true -t "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
           docker push "$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
           echo "image=$REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
