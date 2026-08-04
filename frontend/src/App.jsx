@@ -54,6 +54,14 @@ export default function App() {
     setSelectedClientId(created.id);
   }
 
+  async function handleDeleteClient(client) {
+    await api.deleteClient(client.id);
+    // Drop the selection first: the tabs below are all scoped to a client that
+    // no longer exists, and leaving them mounted would fire 404s on reload.
+    setSelectedClientId(null);
+    await loadClients();
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -76,6 +84,7 @@ export default function App() {
         selectedClientId={selectedClientId}
         onSelect={setSelectedClientId}
         onCreated={handleCreateClient}
+        onDeleted={handleDeleteClient}
       />
 
       {selectedClientId && (

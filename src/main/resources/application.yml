@@ -1,4 +1,4 @@
-spring:
+/spring:
   application:
     name: ark-fund-api
 
@@ -30,6 +30,19 @@ server:
   port: 8083
   error:
     include-message: always
+  # The app sits behind API Gateway and an internal ALB, so honour their
+  # X-Forwarded-* headers rather than the immediate connection: without this,
+  # any absolute URL Spring generates (redirects, Location headers) points at
+  # the internal hop instead of the public one.
+  #
+  # Note this does NOT fix the OpenAPI server URL on its own — the ALB sets
+  # X-Forwarded-Proto from its own listener, which is plain HTTP:80 in the
+  # demo environment, so a derived URL would still come out as http://. That
+  # is handled explicitly with a relative server URL in OpenApiConfig.
+  #
+  # Safe here specifically because the tasks are reachable only through that
+  # ALB behind API Gateway — nothing else can reach them to spoof the headers.
+  forward-headers-strategy: FRAMEWORK
 
 management:
   endpoints:

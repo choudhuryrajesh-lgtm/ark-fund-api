@@ -1,4 +1,5 @@
 import { useState } from "react";
+import DeleteButton from "./DeleteButton";
 
 function initials(name) {
   return name
@@ -9,7 +10,7 @@ function initials(name) {
     .join("");
 }
 
-export default function ClientPicker({ clients, selectedClientId, onSelect, onCreated }) {
+export default function ClientPicker({ clients, selectedClientId, onSelect, onCreated, onDeleted }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,6 +18,15 @@ export default function ClientPicker({ clients, selectedClientId, onSelect, onCr
   const [submitting, setSubmitting] = useState(false);
 
   const selected = clients.find((c) => c.id === selectedClientId);
+
+  async function handleDelete() {
+    setError(null);
+    try {
+      await onDeleted(selected);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -54,6 +64,7 @@ export default function ClientPicker({ clients, selectedClientId, onSelect, onCr
               </option>
             ))}
           </select>
+          {selected && <DeleteButton onConfirm={handleDelete} label="Delete client" />}
         </div>
       )}
 

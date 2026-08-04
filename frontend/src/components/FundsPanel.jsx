@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import DeleteButton from "./DeleteButton";
+import SearchBox from "./SearchBox";
 
 export default function FundsPanel({ clientId }) {
   const [funds, setFunds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [query, setQuery] = useState("");
   const [form, setForm] = useState({ name: "", description: "", inceptionDate: "" });
 
   async function load() {
@@ -39,6 +42,28 @@ export default function FundsPanel({ clientId }) {
     }
   }
 
+  async function handleDelete(fund) {
+    setError(null);
+    try {
+      await api.deleteFund(clientId, fund.id);
+      await load();
+    } catch (err) {
+      // The API refuses to delete a fund that has transactions (409) — show
+      // that reason rather than swallowing it, since it's the rule doing its job.
+      setError(err.message);
+    }
+  }
+
+  // Filtered in the browser: the list endpoint has no name-search parameter,
+  // and this panel already holds the client's full fund list (size=100).
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return funds;
+    return funds.filter((f) =>
+      [f.name, f.description].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    );
+  }, [funds, query]);
+
   return (
     <div className="panel">
       <form onSubmit={handleSubmit} className="inline-form wrap">
@@ -71,31 +96,44 @@ export default function FundsPanel({ clientId }) {
       {loading ? (
         <p>Loading…</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Description</th>
-              <th>Inception</th>
-            </tr>
-          </thead>
-          <tbody>
-            {funds.map((f) => (
-              <tr key={f.id}>
-                <td>{f.name}</td>
-                <td>{f.description ?? "—"}</td>
-                <td>{f.inceptionDate}</td>
-              </tr>
-            ))}
-            {funds.length === 0 && (
+        <>
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder="Search funds by name or description…"
+            count={visible.length}
+            total={funds.length}
+          />
+          <table>
+            <thead>
               <tr>
-                <td colSpan={3} className="empty">
-                  No funds yet
-                </td>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Inception</th>
+                <th className="actions-col">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visible.map((f) => (
+                <tr key={f.id}>
+                  <td>{f.name}</td>
+                  <td>{f.description ?? "—"}</td>
+                  <td>{f.inceptionDate}</td>
+                  <td className="actions-col">
+                    <DeleteButton onConfirm={() => handleDelete(f)} />
+                  </td>
+                </tr>
+              ))}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="empty">
+                    {funds.length === 0 ? "No funds yet" : `No funds matching "${query}"`}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

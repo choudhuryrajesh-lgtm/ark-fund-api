@@ -16,12 +16,17 @@ public class ClientLifecycleSteps {
 
     // Component tests run against docker-compose's persistent Postgres
     // volume, not a disposable per-run container (see
-    // CucumberSpringConfiguration) — without this, re-running the suite a
-    // second time would collide with client emails the first run already
-    // created. Computed once per JVM run, so both steps in the "duplicate
-    // email" scenario still produce the identical actual email as each
-    // other (correctly triggering the duplicate check), while differing
-    // from every other run's emails.
+    // CucumberSpringConfiguration). ScenarioCleanup now removes each
+    // scenario's data afterwards, so runs no longer collide by default —
+    // this suffix remains as a safety net for the case that teardown can't
+    // cover: a run killed part way through (Ctrl-C, a crashed container)
+    // leaves rows behind, and without it the next run would fail on a
+    // duplicate email rather than on whatever actually broke.
+    //
+    // Computed once per JVM run, so both steps in the "duplicate email"
+    // scenario still produce the identical actual email as each other
+    // (correctly triggering the duplicate check), while differing from
+    // every other run's emails.
     private static final String RUN_SUFFIX = Long.toString(System.currentTimeMillis());
 
     @Autowired

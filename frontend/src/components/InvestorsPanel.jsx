@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import DeleteButton from "./DeleteButton";
+import SearchBox from "./SearchBox";
 
 export default function InvestorsPanel({ clientId }) {
   const [investors, setInvestors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [query, setQuery] = useState("");
   const [form, setForm] = useState({ name: "", email: "" });
 
   async function load() {
@@ -39,6 +42,25 @@ export default function InvestorsPanel({ clientId }) {
     }
   }
 
+  async function handleDelete(investor) {
+    setError(null);
+    try {
+      await api.deleteInvestor(clientId, investor.id);
+      await load();
+    } catch (err) {
+      // 409 when the investor has transactions — surface the API's reason.
+      setError(err.message);
+    }
+  }
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return investors;
+    return investors.filter((i) =>
+      [i.name, i.email].filter(Boolean).some((v) => v.toLowerCase().includes(q))
+    );
+  }, [investors, query]);
+
   return (
     <div className="panel">
       <form onSubmit={handleSubmit} className="inline-form wrap">
@@ -64,29 +86,42 @@ export default function InvestorsPanel({ clientId }) {
       {loading ? (
         <p>Loading…</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-            </tr>
-          </thead>
-          <tbody>
-            {investors.map((i) => (
-              <tr key={i.id}>
-                <td>{i.name}</td>
-                <td>{i.email}</td>
-              </tr>
-            ))}
-            {investors.length === 0 && (
+        <>
+          <SearchBox
+            value={query}
+            onChange={setQuery}
+            placeholder="Search investors by name or email…"
+            count={visible.length}
+            total={investors.length}
+          />
+          <table>
+            <thead>
               <tr>
-                <td colSpan={2} className="empty">
-                  No investors yet
-                </td>
+                <th>Name</th>
+                <th>Email</th>
+                <th className="actions-col">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {visible.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.name}</td>
+                  <td>{i.email}</td>
+                  <td className="actions-col">
+                    <DeleteButton onConfirm={() => handleDelete(i)} />
+                  </td>
+                </tr>
+              ))}
+              {visible.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="empty">
+                    {investors.length === 0 ? "No investors yet" : `No investors matching "${query}"`}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );
