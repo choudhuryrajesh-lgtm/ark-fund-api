@@ -46,11 +46,18 @@ curl "$API/api/v1/clients"
 curl "$API/api/v1/clients/11111111-1111-1111-1111-111111111111/reports/portfolio"
 ```
 
-This is a real deployment, not a static demo: **API Gateway → VPC Link → internal ALB →
-ECS Fargate → RDS PostgreSQL (Multi-AZ)**, with the React UI on S3 + CloudFront. All of
-it is provisioned by the Terraform in [`terraform/`](terraform/), and every push to `main`
-redeploys it through [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) — build
-→ test → image → deploy → **post-deploy smoke tests that must pass**. Details in
+This is a real deployment, not a static demo — here is what your request travels through:
+
+![AWS architecture](docs/diagrams/aws-architecture.png)
+
+Nothing inside the VPC is publicly reachable: the ALB is internal, the tasks and database
+sit in private subnets, and API Gateway reaches them over a VPC Link. Credentials come
+from Secrets Manager, never the task definition. (Route 53 fronts `staging`/`production`;
+`demo` uses API Gateway's generated URL, so there's no domain to register.)
+
+All of it is provisioned by the Terraform in [`terraform/`](terraform/), and every push to
+`main` redeploys it through [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml)
+— build → test → image → deploy → **post-deploy smoke tests that must pass**. Details in
 [12-AWS-Deployment.md](docs/12-AWS-Deployment.md) and [05-CICD.md](docs/05-CICD.md).
 
 > It's a shared demo environment with seeded data, so feel free to create and delete

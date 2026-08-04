@@ -1,11 +1,13 @@
 # Diagram Index
 
-All diagrams are written as Mermaid so they render directly in GitHub and stay in version
-control as text, not as images that drift from the system they describe. This page is a
-map of what's where, plus two diagrams that don't belong inside any single doc.
+Diagrams are kept as text — Mermaid, or Python for the one that needs AWS service icons —
+so they render in GitHub, review as a diff, and regenerate on demand rather than drifting
+from the system they describe. This page is a map of what's where, plus two diagrams that
+don't belong inside any single doc.
 
 | Diagram | Type | Location |
 |---|---|---|
+| AWS architecture, with service icons | PNG from [`diagrams/architecture.py`](diagrams/architecture.py) | [README](../README.md), [03-System-Architecture.md](03-System-Architecture.md) §1 |
 | Context diagram (users → edge → compute → data) | flowchart | [03-System-Architecture.md](03-System-Architecture.md) §1 |
 | Network / VPC layout | flowchart | [03-System-Architecture.md](03-System-Architecture.md) §3 |
 | Request path, end to end | sequence | [03-System-Architecture.md](03-System-Architecture.md) §6 |

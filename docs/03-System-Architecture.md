@@ -7,6 +7,13 @@ production deployment; local development still runs on `docker compose` per the
 
 ## 1. Context diagram
 
+![AWS architecture](diagrams/aws-architecture.png)
+
+Rendered from [`diagrams/architecture.py`](diagrams/architecture.py) — kept as code so it
+is reviewable in a pull request and regenerates with one command after an infrastructure
+change. The Mermaid version below is the same topology in text form, for reading in a
+plain diff:
+
 ```mermaid
 flowchart LR
     subgraph Clients
