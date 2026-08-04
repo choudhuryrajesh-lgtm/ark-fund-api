@@ -16,7 +16,7 @@ UI_PORT="${UI_PORT:-3000}"
 MAX_WAIT_SECONDS=120
 POLL_INTERVAL_SECONDS=2
 
-echo "==> Building and starting Ark Fund API (docker compose up --build)..."
+echo "==> Building and starting Ark Fund API (docker compose up --build -d)..."
 docker compose up --build -d
 
 echo "==> Waiting for the API to become healthy on port ${PORT}..."
@@ -62,7 +62,7 @@ done
 echo
 echo "Ark Fund API is up."
 echo
-echo "  Swagger UI:   http://localhost:${PORT}/swagger-ui.html"
+echo "  Swagger UI:   http://localhost:${PORT}/swagger-ui/index.html"
 echo "  Health check: http://localhost:${PORT}/actuator/health"
 if [ "${ui_up}" = "true" ]; then
     echo "  Demo UI:      http://localhost:${UI_PORT}"

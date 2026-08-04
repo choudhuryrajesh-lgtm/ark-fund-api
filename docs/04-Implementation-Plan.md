@@ -3,27 +3,38 @@
 Phased so each stage ships something usable, rather than a big-bang rewrite. Phase 0 is
 delivered in this repository today.
 
-## Phase 0 — Core ledger API (delivered)
+## Phase 0 — MVP (delivered)
 
 **Scope:** Client/Fund/Investor CRUD, transaction ledger with the five transaction types,
 fund/investor/portfolio reporting with `asOfDate`, tenant isolation, RFC 7807 errors,
-OpenAPI docs, Flyway migrations, test suite.
+OpenAPI docs, Flyway migrations, test suite — plus the CI/CD pipeline and a real AWS
+deployment to actually run it on, not just code that compiles locally.
 
 **Why first:** everything else — portal, capital call workflow, GL — reads from or writes
-to this ledger. It has to be correct before anything is built on top of it.
+to this ledger, so it has to be correct before anything is built on top of it. And a
+take-home claiming "production-grade" needs a live environment and a working pipeline
+behind that claim, not just a description of one in a doc.
 
 | Deliverable | Status |
 |---|---|
-| Domain model + migrations | Done — `V1__initial_schema.sql`, `V2__demo_seed_data.sql` |
+| Domain model + migrations | Done — `V1__initial_schema.sql`, `V2__transaction_types.sql`, `V3__demo_seed_data.sql` |
 | CRUD + reporting endpoints | Done — see [07-API-Documentation.md](07-API-Documentation.md) |
 | Tenant isolation | Done — `findByIdAndClientId` pattern, tested |
-| Test coverage | Done — 14 tests on aggregation arithmetic and tenant boundary |
-| API documentation | Done — springdoc/Swagger at `/swagger-ui.html` |
+| Unit/integration tests | Done — 16 tests (`mvn test`), H2, no Docker needed — aggregation arithmetic and the tenant boundary |
+| Component tests | Done — 5 Cucumber scenarios (`mvn verify -Pcomponent-tests`), real HTTP layer against a real PostgreSQL (`docker compose`'s `db`, not H2's compatibility mode) |
+| Live dependency tests | Done — the same 5 scenarios again (`mvn verify -Psmoke-tests`), as a pure black-box HTTP client against an *already-running, already-deployed* instance — `demo` in AWS — proving the live system behaves correctly, not just that it started |
+| Code quality & coverage | Done — SonarCloud, wired into CI on every push/PR, reading JaCoCo's coverage report; advisory (`continue-on-error`) for now, not yet a merge gate |
+| API documentation | Done — springdoc/Swagger at `/swagger-ui/index.html`, [live](https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html) |
+| Circuit breaker | Done — Resilience4j on the reporting endpoints, RDS being this API's one real external dependency (see [06-Resiliency-Scalability.md](06-Resiliency-Scalability.md) §3a) |
+| CI/CD pipeline | Done — `.github/workflows/ci-cd.yml`: build/test → image build (ARM64) → deploy to `demo` → automated post-deploy smoke-test gate. GitHub OIDC to AWS, no long-lived keys in the repo. See [05-CICD.md](05-CICD.md) |
+| AWS deployment | Done — Terraform-provisioned `demo` environment actually applied and running: ECS Fargate, RDS, internal ALB, API Gateway, CloudFront + S3 frontend, New Relic APM. See [12-AWS-Deployment.md](12-AWS-Deployment.md) and `terraform/README.md` |
 
 ## Phase 1 — Production hardening
 
 **Scope:** the gap between "correct" and "operable at Ark's scale," directly answering
-the retention risk called out in [01-PRD.md](01-PRD.md) §9.
+the retention risk called out in [01-PRD.md](01-PRD.md) §9. `staging`/`production`
+Terraform environments exist (`terraform/environments/`) but aren't applied yet — see
+`terraform/README.md`'s "what's deliberately not built yet."
 
 | Item | Detail |
 |---|---|
@@ -31,13 +42,12 @@ the retention risk called out in [01-PRD.md](01-PRD.md) §9.
 | Audit trail | Append-only audit table or Hibernate Envers — who changed what, when, previous value |
 | Optimistic locking | `@Version` on `transactions` to prevent lost updates under concurrent edits |
 | Idempotency keys | On `POST /transactions`, so a retried request after a client-side timeout can't double-book |
-| Structured logging + correlation IDs | JSON logs, request-scoped trace ID propagated end to end (see [10-Monitoring-Observability.md](10-Monitoring-Observability.md)) |
-| CI/CD pipeline | Automated build/test/deploy (see [05-CICD.md](05-CICD.md)) |
-| AWS deployment | ECS Fargate + RDS per [03](03-System-Architecture.md) and [12](12-AWS-Deployment.md) |
+| Structured logging + correlation IDs | Request/response and business-event logging exists today (controllers + services); JSON-formatted logs with a request-scoped correlation ID propagated end to end is still open — see [10-Monitoring-Observability.md](10-Monitoring-Observability.md) |
+| `staging`/`production` environments | Apply the existing Terraform for both, wire up the CI/CD jobs already defined but disabled (`ci-cd.yml`'s `deploy-staging`/`deploy-production`, blue/green via CodeDeploy) |
 
-**Why second:** none of this changes the API surface or data model, so it can ship without
-coordinating with anything downstream, and it closes the exact gaps a fintech vendor can't
-launch without.
+**Why second:** most of this doesn't change the API surface or data model, so it can ship
+without coordinating with anything downstream, and it closes the exact gaps a fintech
+vendor can't launch without.
 
 ## Phase 2 — Commitments & the LP portal surface
 
@@ -89,9 +99,9 @@ gantt
     dateFormat  YYYY-MM-DD
     title Ark Fund API — phased roadmap
     section Phase 0
-    Core ledger API           :done, p0, 2026-06-01, 30d
+    Core ledger API + CI/CD + AWS demo :done, p0, 2026-06-01, 30d
     section Phase 1
-    Auth, audit, CI/CD, AWS   :active, p1, after p0, 45d
+    Auth, audit, staging/production    :active, p1, after p0, 45d
     section Phase 2
     Commitments + LP portal   :p2, after p1, 60d
     section Phase 3

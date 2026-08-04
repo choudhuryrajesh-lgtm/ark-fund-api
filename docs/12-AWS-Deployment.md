@@ -6,21 +6,35 @@ Supporting files: [`deploy/ecs/task-definition.production.json`](../deploy/ecs/t
 
 ## 1. Environments
 
-| Environment | AWS account | Purpose | Data |
-|---|---|---|---|
-| dev | Shared dev account | Individual engineer testing; `docker compose up` locally is the default, this is for integration testing against real AWS services | Synthetic |
-| staging | `ark-staging` | Pre-release verification, demo environment | Anonymized copy of production shape, not real client data |
-| production | `ark-production` | Live traffic | Real client data |
+| Environment | AWS account | Purpose | Data | Status |
+|---|---|---|---|---|
+| dev | Shared dev account | Individual engineer testing; `docker compose up` locally is the default, this is for integration testing against real AWS services | Synthetic | Local Compose serves this role today |
+| **demo** | Candidate-owned account | Minimal-cost live environment so the submission can be evaluated without installing anything | Seeded demo data | **Applied and running** |
+| staging | `ark-staging` | Pre-release verification | Anonymized copy of production shape, not real client data | Written, not applied |
+| production | `ark-production` | Live traffic | Real client data | Written, not applied |
 
 Account-per-environment (not a shared account with namespaced resources) so an IAM
 misconfiguration or a runaway cost in staging can never touch production, and blast radius
 of a compromised credential is bounded to one environment.
 
+**The live `demo` environment:**
+
+| | URL |
+|---|---|
+| API (Swagger UI) | https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html |
+| Frontend | https://d5rx4a862iikr.cloudfront.net/ |
+
+`demo` deliberately skips the Route 53 / ACM custom domain that `staging` and `production`
+use, taking API Gateway's free auto-generated URL instead — a registered domain is a
+manual, chargeable, human step that has nothing to do with whether the infrastructure code
+is correct.
+
 ## 2. Infrastructure as Code
 
 Real Terraform, in [`terraform/`](../terraform) — `terraform validate` and `terraform fmt
--check` clean across all three environments as of the last time it was run, though it has
-not been `apply`'d against a live AWS account. Full runbook: [`terraform/README.md`](../terraform/README.md).
+-check` clean across every environment, and **`demo` and `shared` are applied against a
+live AWS account**, not just validated. `staging` and `production` are written but not
+applied (see §1). Full runbook: [`terraform/README.md`](../terraform/README.md).
 
 ```
 terraform/
@@ -32,9 +46,12 @@ terraform/
 │   ├── alb/               # internal load balancer, target group, HTTPS listener
 │   ├── ecs/               # cluster, task definition, service, IAM roles, autoscaling
 │   ├── api-gateway/       # HTTP API + VPC Link into the internal ALB, custom domain
-│   └── dns/               # ACM certificate, DNS-validated against an existing Route 53 zone
+│   ├── dns/               # ACM certificate, DNS-validated against an existing Route 53 zone
+│   ├── static-site/       # S3 + CloudFront for the React UI, /api/* behavior -> API Gateway
+│   └── github-oidc/       # IAM OIDC provider + deploy role for GitHub Actions (no static keys)
 └── environments/
-    ├── shared/             # ECR repo — applied once, independent of staging/production
+    ├── shared/             # ECR repo + OIDC role — applied once, account-wide
+    ├── demo/               # minimal-cost live environment (APPLIED)
     ├── staging/            # full stack, staging sizing
     └── production/         # full stack, production sizing
 ```

@@ -1,5 +1,5 @@
 # Terraform — Ark Fund API infrastructure
-11
+
 Real, `terraform validate`-clean HCL for the architecture in
 [`docs/03-System-Architecture.md`](../docs/03-System-Architecture.md):
 
@@ -7,9 +7,17 @@ Real, `terraform validate`-clean HCL for the architecture in
 Route 53 -> API Gateway -> (VPC Link) -> internal ALB -> ECS Fargate -> RDS Postgres
 ```
 
-Nothing here has been `apply`'d — this builds the configuration and confirms it's
-internally consistent (`init`, `validate`, `fmt` all pass), not that it's been run against
-a real AWS account. That's the next step, on your own credentials.
+**`demo` is applied and live** — this isn't configuration that has only ever been
+`validate`'d:
+
+| | URL |
+|---|---|
+| API | https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html |
+| Frontend | https://d5rx4a862iikr.cloudfront.net/ |
+
+`shared/` (ECR + the GitHub Actions OIDC role) is applied too. `staging/` and
+`production/` are written and `validate`-clean but deliberately **not** applied — see
+"What's deliberately not built yet" below for why.
 
 ## Layout
 

@@ -1,9 +1,13 @@
 # API Documentation
 
-**Interactive reference:** `/swagger-ui.html` (raw OpenAPI spec at `/v3/api-docs`), served
-by `springdoc-openapi` — always the source of truth for exact request/response schemas.
-This document is the human-readable companion: conventions, examples, and the "why," not a
-duplicate of every field.
+**Interactive reference:** `/swagger-ui/index.html` (raw OpenAPI spec at `/v3/api-docs`),
+served by `springdoc-openapi` — always the source of truth for exact request/response
+schemas. This document is the human-readable companion: conventions, examples, and the
+"why," not a duplicate of every field.
+
+Live now, no setup required:
+**https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html** —
+or locally at `http://localhost:8083/swagger-ui/index.html` after `./run.sh`.
 
 ## 1. Conventions
 

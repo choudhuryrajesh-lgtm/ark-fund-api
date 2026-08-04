@@ -1,18 +1,169 @@
 # Ark Fund API
 
-A REST API for investment management and reporting. Clients (tenants) manage funds and
-investors; investors interact with funds through transactions, and the API reports positions
-at the fund, investor, and portfolio level.
+A REST API for investment management and reporting, built for the Ark take-home brief.
 
-Built with Java 21, Spring Boot 3.3, PostgreSQL, and Flyway.
+Clients (tenants) manage funds and investors. Investors interact with funds through a
+transaction ledger — an amount, on a date, of a given type, applied to a fund. The API
+reports positions at the fund, investor, and portfolio level, at any point in time.
 
-This repository is the working implementation of the take-home brief. The `docs/` folder
-extends it into what the same problem looks like at Ark's actual scale — 450+ fund
-managers, 70,000+ LP users, $150B+ in committed capital — covering the product, capacity,
-architecture, and operational documentation a production launch would need on top of this
-code.
+**Java 21 · Spring Boot 3.3 · PostgreSQL · Flyway · Docker · Terraform · GitHub Actions · New Relic**
 
-## Documentation
+---
+
+## Three ways to check this out
+
+Pick whichever is least effort for you. They all run the same code — the third is the
+graded "one command from a clean checkout" deliverable.
+
+| | Option | What it costs you | Start here |
+|---|---|---|---|
+| **1** | **Live in AWS** | Nothing to install | [Swagger UI](https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html) · [Demo UI](https://d5rx4a862iikr.cloudfront.net/) |
+| **2** | **Locally, one command** | Docker only | [`./run.sh`](#option-2--locally-in-one-command) or [`docker compose up --build`](#option-2--locally-in-one-command) |
+| **3** | **Just the tests** | Maven, no Docker | [`mvn verify`](#option-3--run-the-tests) |
+
+---
+
+### Option 1 — Live in AWS (nothing to install)
+
+The application is deployed and running. Both links are live right now:
+
+| | URL |
+|---|---|
+| **API — Swagger UI** | **https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html** |
+| **Demo UI** | **https://d5rx4a862iikr.cloudfront.net/** |
+
+Or straight from a terminal:
+
+```bash
+API=https://524p1owhlc.execute-api.us-east-1.amazonaws.com
+
+curl "$API/actuator/health"
+curl "$API/api/v1/clients"
+curl "$API/api/v1/clients/11111111-1111-1111-1111-111111111111/reports/portfolio"
+```
+
+This is a real deployment, not a static demo: **API Gateway → VPC Link → internal ALB →
+ECS Fargate → RDS PostgreSQL (Multi-AZ)**, with the React UI on S3 + CloudFront. All of
+it is provisioned by the Terraform in [`terraform/`](terraform/), and every push to `main`
+redeploys it through [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) — build
+→ test → image → deploy → **post-deploy smoke tests that must pass**. Details in
+[12-AWS-Deployment.md](docs/12-AWS-Deployment.md) and [05-CICD.md](docs/05-CICD.md).
+
+> It's a shared demo environment with seeded data, so feel free to create and delete
+> records — you may see leftovers from someone else's poking around.
+
+**Monitoring is live too.** The New Relic Java agent is attached at JVM start, so every
+request you send to that API produces a real trace — latency percentiles, error rate, JVM
+and GC health, and slow SQL down to the statement — with application logs forwarded
+alongside and tagged with their trace ID. Container logs also go to CloudWatch
+independently, and `/actuator/health` backs both the ECS and ALB health checks, so a task
+that stops answering is replaced automatically. The agent is opt-in at build time and its
+licence key comes from Secrets Manager, so nothing here runs or leaks locally — full
+design in [10-Monitoring-Observability.md](docs/10-Monitoring-Observability.md).
+
+---
+
+### Option 2 — Locally, in one command
+
+The brief asks for a single command from a clean checkout. This is it. **Docker is the
+only prerequisite** — no local Java, no Maven, no PostgreSQL install; the build happens
+inside the image.
+
+Use **either** of these:
+
+```bash
+./run.sh                     # runs detached, waits until the API actually answers, prints the URLs
+docker compose up --build    # runs in the foreground, logs stream to your terminal, Ctrl-C stops it
+```
+
+**They produce exactly the same stack** — `run.sh`'s first and only action on the
+containers is literally `docker compose up --build -d`. Same image, same ports, same
+migrations, same seed data. Nothing about the running system differs.
+
+What `run.sh` adds is only what happens *around* that command. Running detached frees your
+terminal — useful, since the `curl` examples below need one — but it also means you lose
+the startup log as a readiness signal, and the API isn't serving for a few seconds after
+the command returns. So the script polls `/actuator/health` until the API genuinely
+answers, then prints the URLs and the examples; if it never comes up, it dumps the
+container logs and tells you what to try.
+
+Plain Compose in the foreground is in no way a lesser path — you watch Postgres, Flyway,
+and Spring Boot start up, and the startup banner tells you when it's ready. Use whichever
+you prefer.
+
+Either way:
+
+| | URL |
+|---|---|
+| **API — Swagger UI** | http://localhost:8083/swagger-ui/index.html |
+| **Demo UI** | http://localhost:3000 |
+| Health check | http://localhost:8083/actuator/health |
+
+If those ports are taken (works with both commands):
+
+```bash
+API_PORT=8090 UI_PORT=3001 ./run.sh
+API_PORT=8090 UI_PORT=3001 docker compose up --build
+```
+
+Shut it down when you're done (`-v` also drops the database volume):
+
+```bash
+docker compose down
+```
+
+---
+
+### Option 3 — Run the tests
+
+No Docker daemon needed — the unit and integration suites run against in-memory H2:
+
+```bash
+mvn verify
+```
+
+Three tiers, deliberately separated so the command above keeps its no-Docker guarantee:
+
+| Tier | Command | Runs against |
+|---|---|---|
+| **Unit / integration** — 16 tests | `mvn verify` | In-memory H2 |
+| **Component** — 5 Cucumber scenarios | `docker compose up -d db`<br>`mvn verify -Pcomponent-tests` | Real PostgreSQL, real HTTP layer |
+| **Smoke** — the same 5 scenarios, black-box | `mvn verify -Psmoke-tests -Dsmoke.base.url=<url>` | A live, already-deployed instance |
+
+The same Gherkin features serve the last two tiers: once against a real dependency, once
+as a post-deploy gate CI runs against `demo` after every release — so a deploy is verified
+by behaviour, not just a health check. **SonarCloud** takes JaCoCo coverage on every push
+(advisory, not yet a merge gate).
+
+Detail: [Test coverage](#test-coverage).
+
+---
+
+## How this maps to the brief
+
+| The brief asks for | Where it is |
+|---|---|
+| Java | Java 21, Spring Boot 3.3 |
+| Clients add **funds** and **investors** | Full CRUD under `/api/v1/clients/{clientId}/…` |
+| A fund has **many investors**; an investor joins **many funds** | Many-to-many, expressed through the transaction ledger — [rationale](#domain-model) |
+| A transaction has a **date**, an **amount**, a **type**, applied to a **fund**, executed by an **investor** | `transactions` table + `POST /clients/{id}/transactions` |
+| The **five transaction types**, each a credit or a debit | [Transaction types](#transaction-types) — credit/debit is reference data, not hardcoded |
+| **Typical CRUD operations** | Create / read / update / delete on clients, funds, investors, transactions — with financial-integrity limits on update and delete, [explained here](#design-decisions) |
+| **Basic reporting for funds and investors** | Three reports: fund, investor, and a portfolio rollup — each with optional `asOfDate` |
+| **Simple instructions to run it** | [Option 2](#option-2--locally-in-one-command) |
+| **A single command** | Either `./run.sh` or `docker compose up --build` — your choice, same stack |
+| **Everything the business would expect at the end of a dev cycle** | Tests at three tiers, CI/CD, IaC, a live deployment, and [13 engineering documents](#engineering-documentation) |
+| Front end **not** required | Understood — the API stands on its own. One is [included anyway](#about-the-demo-ui), to make validation quicker |
+
+---
+
+## Engineering documentation
+
+The brief asks for "everything the business would expect at the conclusion of the
+development cycle." That is not just working code, so these 13 documents are part of the
+deliverable rather than an appendix to it — the product, capacity, architecture, security
+and operational thinking behind the API, sized for Ark's actual published scale (450+ fund
+managers, 70,000+ LP users, $150B+ in committed capital).
 
 | Doc | Covers |
 |---|---|
@@ -20,127 +171,40 @@ code.
 | [02 · Capacity Planning](docs/02-Capacity-Planning.md) | RPS, latency, throughput — derived from Ark's published business metrics |
 | [03 · System Architecture](docs/03-System-Architecture.md) | AWS HLD: Route 53 → API Gateway → ALB → ECS Fargate → RDS |
 | [04 · Implementation Plan](docs/04-Implementation-Plan.md) | Phased roadmap from this MVP to commitments, LP portal, org hierarchy, full GL |
-| [05 · CI/CD](docs/05-CICD.md) | Pipeline design; pipeline itself at [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) |
-| [06 · Resiliency & Scalability](docs/06-Resiliency-Scalability.md) | Failure modes, autoscaling policy, resilience patterns |
+| [05 · CI/CD](docs/05-CICD.md) | Pipeline design; the pipeline itself is [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) |
+| [06 · Resiliency & Scalability](docs/06-Resiliency-Scalability.md) | Failure modes, autoscaling policy, circuit breakers |
 | [07 · API Documentation](docs/07-API-Documentation.md) | Endpoint reference, examples, error format, versioning |
 | [08 · Database Design](docs/08-Database-Design.md) | Schema, ERD, indexing, partitioning, migration strategy |
 | [09 · Security](docs/09-Security.md) | AuthN/AuthZ design, tenant isolation, OWASP mapping, compliance posture |
 | [10 · Monitoring & Observability](docs/10-Monitoring-Observability.md) | New Relic, Splunk, dashboards, alerting, on-call |
-| [11 · Diagrams](docs/11-Diagrams.md) | Index of every diagram plus tenancy/lifecycle diagrams that don't belong in one doc |
-| [12 · AWS Deployment](docs/12-AWS-Deployment.md) | Environments, IaC outline, ECS configuration, deployment runbook |
+| [11 · Diagrams](docs/11-Diagrams.md) | Index of every diagram, plus tenancy/lifecycle diagrams that don't belong to one doc |
+| [12 · AWS Deployment](docs/12-AWS-Deployment.md) | Environments, IaC, ECS configuration, deployment runbook |
 | [13 · Disaster Recovery & Failover](docs/13-Disaster-Recovery-Failover.md) | Multi-AZ failover, backups, cross-region DR, game-day testing |
 
-The live application below is the actual Phase 0 deliverable ([04-Implementation-Plan](docs/04-Implementation-Plan.md));
-everything above documents how it extends into a production Ark deployment.
+Infrastructure runbook: [`terraform/README.md`](terraform/README.md).
 
 ---
 
-## Running it
+## About the demo UI
 
-One command, from a clean checkout. No local Java or Maven required — the build happens
-inside Docker.
+The brief doesn't require a front end; I built one deliberately, for two reasons.
 
-```bash
-./run.sh
-```
+It makes the API quick to validate: posting a contribution and watching the fund balance,
+the investor's position, and the portfolio rollup all move together demonstrates the
+ledger is coherent — faster than assembling the equivalent curl calls. And as a full-stack
+engineer, it lets me show that side of my work rather than assert it.
 
-This builds the image, starts PostgreSQL and the API, waits until the API is actually
-responding (not just "container started"), then prints the Swagger UI URL and a couple of
-ready-to-run `curl` examples against the pre-seeded demo data.
-
-Equivalent, if you'd rather run it directly:
-
-```bash
-docker compose up --build
-```
-
-That starts PostgreSQL, applies the schema migrations, loads demo data, and serves the API on
-**http://localhost:8083**.
-
-If port 8083 is already in use:
-
-```bash
-API_PORT=8090 docker compose up --build
-# or: API_PORT=8090 ./run.sh
-```
-
-**Verify it's up:**
-
-```bash
-curl http://localhost:8083/actuator/health
-```
-
-**Explore the API interactively:** http://localhost:8083/swagger-ui.html
-
-**Demo UI (optional, bonus):** http://localhost:3000 — a minimal React app exercising the
-API end to end (create clients/funds/investors, record transactions, view reports). Not
-part of the graded submission — the brief explicitly says a front end isn't required.
-Starts automatically with `./run.sh` / `docker compose up --build`; see
-[`frontend/README.md`](frontend/README.md) for details.
-
-**Shut down** (add `-v` to also drop the database volume):
-
-```bash
-docker compose down
-```
-
-### Running the tests
-
-Two tiers:
-
-**Unit/integration (`mvn test` / `mvn verify`)** — runs against in-memory H2, so no
-Docker daemon is needed:
-
-```bash
-mvn verify
-```
-
-**Component (Cucumber, live dependency)** — Gherkin scenarios (`src/test/resources/features`)
-run through the real HTTP layer against the same real PostgreSQL `docker compose` already
-runs for local dev, not H2's compatibility mode. Opt-in and separate from the command
-above specifically so that one keeps its no-Docker-needed guarantee:
-
-```bash
-docker compose up -d db
-mvn verify -Pcomponent-tests
-```
-
-**Code quality + coverage (SonarCloud)** — runs automatically in CI on every push/PR
-(`build-test` job), reading the JaCoCo coverage report `mvn test` now produces
-(`target/site/jacoco/jacoco.xml`). One-time setup:
-
-1. Sign in to [sonarcloud.io](https://sonarcloud.io) with GitHub, import this repo as a
-   new project (free for public repos).
-2. Note the **organization key** and **project key** it assigns.
-3. Generate a token: **My Account → Security → Generate Token**.
-4. In this repo's GitHub settings (**Settings → Secrets and variables → Actions**):
-   - Secret `SONAR_TOKEN` = the token from step 3.
-   - Variable `SONAR_ORGANIZATION` = the organization key from step 2.
-   - Variable `SONAR_PROJECT_KEY` = the project key from step 2.
-
-Runs with `continue-on-error: true` for now (advisory, same as the OWASP/SpotBugs steps
-next to it) — not yet a merge gate.
-
-**Smoke (Cucumber, post-deploy)** — the exact same feature files, but as a pure black-box
-HTTP client against an *already-running* instance instead of booting one — a real
-post-deploy verification gate, not just a health-check curl. Wired into
-`.github/workflows/ci-cd.yml`'s `deploy-demo` job automatically after every deploy; runnable
-by hand against anything with a URL:
-
-```bash
-docker compose up -d --build          # local stand-in
-mvn verify -Psmoke-tests -Dsmoke.base.url=http://localhost:8083
-
-# or against the real deployed demo environment
-mvn verify -Psmoke-tests -Dsmoke.base.url="$(cd terraform/environments/demo && terraform output -raw api_url)"
-```
+~830 lines of plain React across six components, deployed by the same Terraform as the API
+(S3 + CloudFront). The API remains the deliverable and stands on its own — every screen
+maps to an endpoint you can hit directly in Swagger. See
+[`frontend/README.md`](frontend/README.md).
 
 ---
 
 ## Demo data
 
-The application seeds one client with two funds, three investors, and thirteen transactions so
-the reporting endpoints return meaningful numbers immediately.
+Seeded on startup: one client, two funds, three investors, thirteen transactions — so the
+reporting endpoints return meaningful numbers the moment the app is up.
 
 | Entity | ID |
 |---|---|
@@ -151,30 +215,31 @@ the reporting endpoints return meaningful numbers immediately.
 | Investor — Brookfield Trust | `33333333-3333-3333-3333-333333333302` |
 | Investor — Carlos Mendes | `33333333-3333-3333-3333-333333333303` |
 
-To start with no demo business data instead, set `spring.flyway.target=2` (which skips the
-seed migration but still applies the schema and the `transaction_types` reference data).
+To start with an empty database instead, set `spring.flyway.target=2` — that skips the
+seed migration while still applying the schema and the `transaction_types` reference data.
 
 ### Try it
 
 ```bash
+API=http://localhost:8083          # or the AWS URL from Option 1
 CLIENT=11111111-1111-1111-1111-111111111111
 FUND=22222222-2222-2222-2222-222222222201
 INVESTOR=33333333-3333-3333-3333-333333333301
 
 # Fund report — balance, totals by type, per-investor positions
-curl "http://localhost:8083/api/v1/clients/$CLIENT/reports/funds/$FUND"
+curl "$API/api/v1/clients/$CLIENT/reports/funds/$FUND"
 
-# The same fund as of a past date (before H2 fees and distributions were booked)
-curl "http://localhost:8083/api/v1/clients/$CLIENT/reports/funds/$FUND?asOfDate=2024-06-30"
+# The same fund as of a past date, before the second-half fees and distributions were booked
+curl "$API/api/v1/clients/$CLIENT/reports/funds/$FUND?asOfDate=2024-06-30"
 
-# Investor report — position across every fund they participate in
-curl "http://localhost:8083/api/v1/clients/$CLIENT/reports/investors/$INVESTOR"
+# Investor report — their position across every fund they participate in
+curl "$API/api/v1/clients/$CLIENT/reports/investors/$INVESTOR"
 
 # Portfolio rollup across all of the client's funds
-curl "http://localhost:8083/api/v1/clients/$CLIENT/reports/portfolio"
+curl "$API/api/v1/clients/$CLIENT/reports/portfolio"
 
-# Record a transaction
-curl -X POST "http://localhost:8083/api/v1/clients/$CLIENT/transactions" \
+# Record a transaction, then re-run the fund report to see it land
+curl -X POST "$API/api/v1/clients/$CLIENT/transactions" \
   -H "Content-Type: application/json" \
   -d "{\"fundId\":\"$FUND\",\"investorId\":\"$INVESTOR\",\"type\":\"CONTRIBUTION\",\"amount\":25000.00,\"transactionDate\":\"2024-12-01\"}"
 ```
@@ -185,16 +250,16 @@ curl -X POST "http://localhost:8083/api/v1/clients/$CLIENT/transactions" \
 
 ```
 Client (tenant)
-  ├── Fund       (many)
-  ├── Investor   (many)
+  ├── Fund        (many)
+  ├── Investor    (many)
   └── Transaction (many) ──> references one Fund and one Investor
 ```
 
 A fund has many investors and an investor may contribute to many funds. That many-to-many
 relationship is expressed **through the transaction ledger** rather than a join table: the
-association carries a date, an amount, and a type, none of which a plain join table can hold.
-Deriving participation from transactions keeps one source of truth — an investor is in a fund
-because there is money behind it.
+association carries a date, an amount, and a type — none of which a plain join table can
+hold. Deriving participation from transactions keeps one source of truth: an investor is
+in a fund because there is money behind it, not because a second table says so.
 
 ### Transaction types
 
@@ -206,23 +271,22 @@ because there is money behind it.
 | `GENERAL_EXPENSE` | Debit |
 | `MANAGEMENT_FEE` | Debit |
 
-Amounts are always stored **positive**; direction comes from the type. Storing signed amounts
-would make the sign and the type two sources of truth that can disagree. The rule lives in one
-place (`TransactionType.applySign`).
+Amounts are always stored **positive**; direction comes from the type. Signed amounts
+would make the sign and the type two sources of truth that can disagree. The rule lives in
+exactly one place (`TransactionType.applySign`).
 
-Transaction types are governed reference data (the `transaction_types` table,
-foreign-keyed from `transactions.type`), not a fixed enum — the business can add a new
-type (a new fee category, a new kind of distribution) by inserting a row and classifying
-it as a credit or a debit, with no code deploy. `GET /api/v1/transaction-types` lists the
-types available for posting. See [08-Database-Design.md](docs/08-Database-Design.md) §2
-for the full rationale, including why this is deliberately *not* a client-facing
-self-service action.
+The types are **governed reference data** — a `transaction_types` table, foreign-keyed
+from `transactions.type` — not a fixed enum. The business can add a new fee category or a
+new kind of distribution by inserting a row and classifying it as a credit or a debit,
+with no code deploy. `GET /api/v1/transaction-types` lists what's available for posting.
+[08-Database-Design.md §2](docs/08-Database-Design.md) covers the full rationale, including
+why this is deliberately *not* a client-facing self-service action.
 
 ---
 
 ## API
 
-All endpoints are under `/api/v1` and scoped to a client.
+Everything is under `/api/v1` and scoped to a client.
 
 | Method | Path | Description |
 |---|---|---|
@@ -237,6 +301,7 @@ All endpoints are under `/api/v1` and scoped to a client.
 | `GET` | `/clients/{clientId}/reports/funds/{fundId}` | Fund report |
 | `GET` | `/clients/{clientId}/reports/investors/{investorId}` | Investor report |
 | `GET` | `/clients/{clientId}/reports/portfolio` | Portfolio rollup |
+| `GET` | `/transaction-types` | Postable transaction types and their credit/debit direction |
 
 List endpoints are paginated (`?page=0&size=20&sort=name,asc`). Every report accepts an
 optional `?asOfDate=YYYY-MM-DD`.
@@ -254,87 +319,62 @@ Errors use [RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807) `problem+js
 }
 ```
 
-`400` for validation failures (with a per-field `errors` map), `404` for missing resources,
-`409` for business-rule violations.
+`400` for validation failures (with a per-field `errors` map), `404` for missing
+resources, `409` for business-rule violations. Full reference with request/response
+examples: [07-API-Documentation.md](docs/07-API-Documentation.md).
 
 ---
 
 ## Design decisions
 
-**Tenancy is explicit in the URL and enforced on every lookup.** Funds, investors, and
-transactions are nested under `/clients/{clientId}`, and every repository lookup is
-`findByIdAndClientId` rather than `findById`. Requesting another client's resource returns
-`404`, not `403` — a `403` would confirm the resource exists, which is itself a leak. The most
-important case this closes: a transaction can never link a fund and an investor belonging to
-different clients, because both are resolved through tenant-scoped loaders.
+| Decision | Why |
+|---|---|
+| **Tenancy enforced on every lookup** — every repository call is `findByIdAndClientId`, never `findById` | A transaction can never link a fund and an investor from different clients. Cross-tenant reads return `404`, not `403` — a `403` confirms the resource exists, which is itself a leak |
+| **Money is `BigDecimal`, never `double`** | Binary floating point can't represent decimal currency exactly, and drift compounds across a ledger. Pinned to 2dp on write; the DB enforces `amount > 0` |
+| **Aggregation happens in SQL** | Grouped queries return one row per type, not a full ledger summed in Java. A fund with a million transactions still returns a handful of rows, and per-party breakdowns avoid the reporting N+1 |
+| **Reports carry their `asOfDate`** | Back-dated transactions restate history. A balance without an effective date is ambiguous — and reports get screenshotted and emailed |
+| **Flyway owns the schema; Hibernate is `validate`** | Startup fails fast on drift, instead of `ddl-auto: update` silently altering tables under a running system |
+| **Transactions can't be re-pointed to another fund or investor** | `PUT` corrects type, amount, date, notes — not the parties. Re-pointing rewrites two parties' reported history; the correct treatment is a reversing entry, which is what an auditor expects |
+| **Funds and investors with transactions can't be deleted** | A fund with history is a financial record, not a typo. Refused with `409` |
+| **Circuit breaker on reporting endpoints** | RDS is the one real external dependency; Resilience4j stops a database stall becoming thread-pool exhaustion that takes writes down with reads ([06](docs/06-Resiliency-Scalability.md)) |
 
-In production the client ID would come from an authenticated principal (JWT claim) rather than
-the path. The path-based approach keeps the take-home runnable without an auth server while
-making the isolation boundary visible and testable.
+In production `clientId` would come from a JWT claim rather than the path. The path-based
+approach keeps this runnable without an auth server, while making the isolation boundary
+visible and testable.
 
-**Money is `BigDecimal`, never `double`.** Binary floating point cannot represent decimal
-currency exactly, and the drift compounds across a ledger. Amounts are pinned to two decimal
-places on write, and the database enforces `amount > 0`.
+### Deliberately not done
 
-**Aggregation happens in the database.** Reports use grouped queries returning one row per
-transaction type, not a full ledger load summed in Java. A fund with a million transactions
-still returns a handful of rows. The per-investor and per-fund breakdowns use a single grouped
-query each rather than a per-party loop, avoiding the classic reporting N+1.
-
-**Reports carry their `asOfDate`.** Fund accounting gets restated — back-dated transactions
-arrive after a period has been reported on. A balance without an effective date is ambiguous,
-and reports get screenshotted and emailed, so the date travels with the number.
-
-**Flyway owns the schema; Hibernate is set to `validate`.** Startup fails fast if the entities
-and the migrated schema have drifted, rather than `ddl-auto: update` silently altering tables.
-
-**Transactions can't be re-pointed at a different fund or investor.** `PUT` on a transaction
-allows correcting type, amount, date, and notes — but not the parties. Re-pointing an existing
-ledger entry silently rewrites two parties' reported history; the correct treatment is a
-reversing entry plus a new one, which is what an auditor expects to see.
-
-**Funds and investors with transactions cannot be deleted.** A fund with history is a
-financial record, not a typo. Deleting it would orphan investor history, so it is refused with
-a `409`.
-
-### Things I decided *not* to do, and why
-
-**Negative fund balances are allowed.** Real funds legitimately run negative between a
-distribution and a capital call, so blocking it would encode a rule the business may not want.
-Enforcing it correctly would also need row-level locking to be safe under concurrent writes.
-This is the first question I'd take back to the business.
-
-**No explicit subscription/commitment entity.** Real fund administration usually has a
-subscription step where an investor commits to a fund before transacting. The brief describes
-investors interacting with funds *through transactions*, so participation is derived from the
-ledger. Adding commitments later is additive, not a rewrite.
-
-**No authentication.** Out of scope for the brief. The tenancy boundary is built and tested,
-so wiring it to a real principal is a small change (resolve `clientId` from the token instead
-of the path).
+| Not done | Why |
+|---|---|
+| **Negative fund balances aren't blocked** | Real funds run negative between a distribution and a capital call, so blocking it would encode a rule the business may not want — and would need row-level locking to be safe under concurrent writes. First question I'd take back to the business |
+| **No subscription/commitment entity** | The brief describes investors interacting with funds *through transactions*, so participation is derived from the ledger. Adding commitments later is additive, not a rewrite |
+| **No authentication** | Out of scope for the brief. The tenancy boundary is built and tested, so wiring it to a real principal is a small change ([09-Security.md](docs/09-Security.md)) |
 
 ---
 
 ## What I'd add for production
 
-- **Authentication and authorisation** — OAuth2/JWT, with `clientId` resolved from the token
-  and a `HandlerInterceptor` or method-level security enforcing it, replacing the path variable.
+- **Authentication and authorisation** — OAuth2/JWT, with `clientId` resolved from the
+  token and method-level security enforcing it, replacing the path variable.
 - **Append-only audit trail** — `created_at`/`updated_at` cover the basics, but financial
   records need "who changed what, when, and what was the previous value". A separate audit
   table (or Hibernate Envers) rather than in-place mutation.
-- **Optimistic locking** (`@Version`) on transactions to prevent lost updates under concurrent
-  edits.
-- **Idempotency keys** on transaction creation, so a retried request after a network timeout
-  cannot double-book a contribution.
-- **Testcontainers** in CI to run the integration suite against real PostgreSQL rather than
-  H2, catching dialect-specific behaviour the compatibility mode hides.
-- **Observability** — Micrometer metrics, structured JSON logs with correlation IDs, and
-  tracing across the request path.
-- **Soft delete / lifecycle status** on funds (`ACTIVE`/`CLOSED`) instead of hard delete, so
-  closing a fund preserves history.
+- **Optimistic locking** (`@Version`) on transactions, to prevent lost updates under
+  concurrent edits.
+- **Idempotency keys** on transaction creation, so a retried request after a network
+  timeout cannot double-book a contribution.
+- **Testcontainers** in CI for the integration suite, catching dialect-specific behaviour
+  H2's compatibility mode hides. (The component tier already covers this against real
+  PostgreSQL; Testcontainers would make it the default rather than opt-in.)
+- **Structured JSON logs with correlation IDs** propagated end to end, plus tracing across
+  the request path ([10-Monitoring-Observability.md](docs/10-Monitoring-Observability.md)).
+- **Soft delete / lifecycle status** on funds (`ACTIVE`/`CLOSED`) instead of hard delete,
+  so closing a fund preserves history.
 - **Rate limiting and request-size caps** at the gateway.
-- **Report caching** — portfolio rollups are read-heavy and change only when transactions are
-  written, making them a natural fit for a cache invalidated on write.
+- **Report caching** — portfolio rollups are read-heavy and change only when transactions
+  are written, making them a natural fit for a cache invalidated on write.
+
+The sequencing for all of this is in [04-Implementation-Plan.md](docs/04-Implementation-Plan.md).
 
 ---
 
@@ -354,47 +394,32 @@ src/main/resources/db/migration/
 ├── V2__transaction_types.sql
 └── V3__demo_seed_data.sql
 
-docs/                          Production documentation — see the index above
-├── 01-PRD.md ... 13-Disaster-Recovery-Failover.md
+src/test/
+├── java/…/cucumber/    Component + smoke step definitions (same features, two runners)
+└── resources/features/ Gherkin scenarios
 
-deploy/ecs/                    ECS task definitions + CodeDeploy appspec (docs/12)
-.github/workflows/ci-cd.yml    Build/test/deploy pipeline (docs/05)
+frontend/                      Optional React demo UI (not part of the deliverable)
+docs/                          01 … 13 — see the index above
+terraform/                     Modules + demo/staging/production environments
+deploy/ecs/                    ECS task definitions + CodeDeploy appspec
+.github/workflows/ci-cd.yml    Build → test → image → deploy → smoke gate
 ```
 
-DTOs are kept separate from entities deliberately: the wire contract and the persistence model
-change for different reasons, and serialising entities directly risks lazy-loading surprises
-and exposes columns never meant to be public.
+DTOs are kept separate from entities deliberately: the wire contract and the persistence
+model change for different reasons, and serialising entities directly risks lazy-loading
+surprises and exposes columns never meant to be public.
+
+---
 
 ## Test coverage
 
-**16 unit/integration tests** (`mvn test`, H2, no Docker) covering the reporting arithmetic
-and the tenant boundary — the two places where a defect would be both silent and financially
-meaningful.
+The 16 unit/integration tests target the two places a defect would be both silent and
+financially meaningful: the reporting arithmetic (aggregation, `asOfDate` filtering,
+per-investor positions summing back to the fund balance) and the tenant boundary
+(cross-tenant writes rejected, another client's fund returning `404`). The 5 Cucumber
+scenarios re-verify that ground end to end — client lifecycle, a fund report's aggregation
+SQL, an inception-date violation — first against real PostgreSQL, then unchanged as the
+post-deploy gate against the live `demo` environment.
 
-- Fund report aggregation, including that per-investor positions sum back to the fund balance
-- Investor reports spanning multiple funds
-- `asOfDate` filtering
-- Funds with no transactions still appearing in the portfolio report
-- Cross-tenant transaction creation rejected
-- Reading another client's fund returns `404`
-- Transaction dated before fund inception rejected
-- Non-positive amounts rejected
-- Deletion blocked for funds with transactions
-- Duplicate fund names within a client rejected
-- Credit/debit direction for every transaction type
-
-**5 Cucumber component scenarios** (`mvn verify -Pcomponent-tests`, real PostgreSQL, real
-HTTP layer — see "Running the tests" above) covering the same kind of ground end-to-end
-against a live dependency rather than H2's compatibility mode:
-
-- Client creation, duplicate-email rejection, deletion
-- A fund report's aggregation SQL against real Postgres (credits, debits, net balance,
-  investor count) — exactly the kind of query where Postgres-specific behavior could
-  diverge from H2
-- Transaction dated before fund inception rejected, verified end-to-end through the real
-  HTTP layer
-
-**Same 5 scenarios again, as a post-deploy smoke test** (`mvn verify -Psmoke-tests`) — run
-automatically in CI against `demo` right after every deploy stabilizes, and runnable by
-hand against any live URL. Proves the deployed service behaves correctly end-to-end, not
-just that the container started.
+SonarCloud reads JaCoCo coverage on every push and PR, advisory alongside the OWASP and
+SpotBugs steps rather than a merge gate.

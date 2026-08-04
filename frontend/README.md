@@ -1,12 +1,19 @@
 # Ark Fund API — Demo UI
 
 A minimal React app that exercises the Ark Fund API: create a client, add funds and
-investors, record transactions, and view the three report types. It exists to make the
-API easy to poke at visually — the take-home brief explicitly says a front end is not
-required, so this is a bonus, kept out of the graded API's source tree.
+investors, record transactions, and view the three report types.
 
-No state management library, no router, no component kit — plain React, `fetch`, and
-`useState`/`useEffect`. The point is to showcase the API, not the frontend.
+The brief doesn't require a front end; this was built deliberately. It makes the API quick
+to validate — posting a contribution and watching the fund balance, the investor's
+position, and the portfolio rollup all move together demonstrates the ledger is coherent —
+and it shows the front-end side of my work alongside the Java.
+
+Scope is intentionally tight: plain React with `fetch` and `useState`/`useEffect` — no
+state management library, no router, no component kit. The point is to exercise the API,
+not to build a second product.
+
+**Live version:** https://d5rx4a862iikr.cloudfront.net/ (S3 + CloudFront, with `/api/*`
+routed through to API Gateway so the browser never needs CORS).
 
 ## Running it
 
