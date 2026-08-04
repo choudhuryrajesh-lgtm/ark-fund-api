@@ -1,10 +1,13 @@
 # Ark Fund API
 
-A REST API for investment management and reporting, built for the Ark take-home brief.
+A multi-tenant REST API for fund accounting and investor reporting — the system of record
+for capital moving between investors and the funds they hold.
 
-Clients (tenants) manage funds and investors. Investors interact with funds through a
-transaction ledger — an amount, on a date, of a given type, applied to a fund. The API
-reports positions at the fund, investor, and portfolio level, at any point in time.
+Fund managers register their funds and investors, then record the transactions that move
+money between them: contributions and interest income credit a fund; distributions,
+general expenses and management fees debit it. From that ledger the API answers the two
+questions the business actually asks — *what is this fund worth?* and *what is this
+investor's position?* — as of today, or as of any date in the past.
 
 **Java 21 · Spring Boot 3.3 · PostgreSQL · Flyway · Docker · Terraform · GitHub Actions · New Relic**
 
@@ -194,10 +197,12 @@ the investor's position, and the portfolio rollup all move together demonstrates
 ledger is coherent — faster than assembling the equivalent curl calls. And as a full-stack
 engineer, it lets me show that side of my work rather than assert it.
 
-~830 lines of plain React across six components, deployed by the same Terraform as the API
-(S3 + CloudFront). The API remains the deliverable and stands on its own — every screen
-maps to an endpoint you can hit directly in Swagger. See
-[`frontend/README.md`](frontend/README.md).
+A single-page React app covering the full flow — client selection, funds, investors,
+transactions, and all three reports — with the API's RFC 7807 errors surfaced as inline
+field messages rather than a generic failure. Plain React and `fetch`, no state library or
+component kit, deployed by the same Terraform as the API (S3 + CloudFront). The API
+remains the deliverable and stands on its own; every screen maps to an endpoint you can
+hit directly in Swagger. See [`frontend/README.md`](frontend/README.md).
 
 ---
 
@@ -272,8 +277,10 @@ in a fund because there is money behind it, not because a second table says so.
 | `MANAGEMENT_FEE` | Debit |
 
 Amounts are always stored **positive**; direction comes from the type. Signed amounts
-would make the sign and the type two sources of truth that can disagree. The rule lives in
-exactly one place (`TransactionType.applySign`).
+would make the sign and the type two sources of truth that can disagree. Direction is held
+in exactly one place — `transaction_types.direction`, read through `TransactionType` — so
+both the per-transaction signed amount (`applySign`) and the report-level credit/debit
+split (`isCredit`) derive from the same column rather than restating the rule.
 
 The types are **governed reference data** — a `transaction_types` table, foreign-keyed
 from `transactions.type` — not a fixed enum. The business can add a new fee category or a

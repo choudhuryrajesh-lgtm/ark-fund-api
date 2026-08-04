@@ -172,7 +172,7 @@ speculatively against a projection.
 
 | Constraint | Rule |
 |---|---|
-| `ck_transactions_amount_positive CHECK (amount > 0)` | Amount is always positive; sign/direction is derived from `type` in application code (`TransactionType.applySign`) |
+| `ck_transactions_amount_positive CHECK (amount > 0)` | Amount is always positive; sign/direction is derived from `transaction_types.direction` via the `type` FK, never stored on the row |
 | `ck_transaction_types_direction CHECK (direction IN ('CREDIT','DEBIT'))` | A transaction type must be classified one way or the other — no ambiguous or unset direction can exist |
 | `fk_transactions_type FOREIGN KEY (type) REFERENCES transaction_types (code)` | A transaction can never carry a type the business hasn't explicitly defined and classified — see §2 |
 | `uq_funds_client_name UNIQUE (client_id, name)` | Fund names unique per client, not globally |
