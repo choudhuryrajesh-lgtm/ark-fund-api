@@ -16,7 +16,8 @@ investor's position?* — as of today, or as of any date in the past.
 ## Three ways to try it
 
 All three exercise the same code. Option 2 is the brief's "single command from a clean
-checkout"; option 1 needs nothing installed at all, if you'd rather just look first.
+checkout"; option 1 needs nothing installed and is the only one that shows it live on
+AWS — CI/CD pipeline, infrastructure and monitoring included.
 
 | | Option | Requires | Start here |
 |---|---|---|---|
