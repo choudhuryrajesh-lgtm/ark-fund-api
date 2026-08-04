@@ -24,4 +24,7 @@ public interface FundRepository extends JpaRepository<Fund, UUID> {
     boolean existsByClientIdAndNameIgnoreCase(UUID clientId, String name);
 
     boolean existsByClientIdAndNameIgnoreCaseAndIdNot(UUID clientId, String name, UUID id);
+
+    /** Guards client deletion — see ClientService#delete. */
+    boolean existsByClientId(UUID clientId);
 }

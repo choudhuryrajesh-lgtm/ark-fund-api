@@ -4,6 +4,8 @@ import com.ark.fundapi.domain.Client;
 import com.ark.fundapi.exception.BusinessRuleException;
 import com.ark.fundapi.exception.ResourceNotFoundException;
 import com.ark.fundapi.repository.ClientRepository;
+import com.ark.fundapi.repository.FundRepository;
+import com.ark.fundapi.repository.InvestorRepository;
 import com.ark.fundapi.web.dto.ClientDtos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,16 +28,22 @@ public class ClientService {
     private static final Logger log = LoggerFactory.getLogger(ClientService.class);
 
     private final ClientRepository clientRepository;
+    private final FundRepository fundRepository;
+    private final InvestorRepository investorRepository;
 
-    public ClientService(ClientRepository clientRepository) {
+    public ClientService(ClientRepository clientRepository,
+                         FundRepository fundRepository,
+                         InvestorRepository investorRepository) {
         this.clientRepository = clientRepository;
+        this.fundRepository = fundRepository;
+        this.investorRepository = investorRepository;
     }
 
     @Transactional
     public ClientDtos.Response create(ClientDtos.CreateRequest request) {
         if (clientRepository.existsByEmailIgnoreCase(request.email())) {
             log.warn("Rejected client creation: email already registered");
-            throw new BusinessRuleException("A client already exists with email " + request.email());
+            throw new BusinessRuleException("A client already exists1 with email " + request.email());
         }
         Client client = new Client(request.name().trim(), request.email().trim().toLowerCase());
         client = clientRepository.save(client);
@@ -68,9 +76,26 @@ public class ClientService {
     @Transactional
     public void delete(UUID clientId) {
         Client client = require(clientId);
-        // Funds, investors and transactions all reference the client, so the
-        // database FKs would reject this anyway. Failing here gives a clear
-        // business message instead of a raw constraint-violation stack trace.
+        // Funds, investors and transactions all reference the client with
+        // plain foreign keys — no ON DELETE CASCADE (V1__initial_schema.sql).
+        // Without this check the delete reaches the database and comes back as
+        // a constraint violation, which surfaces to the caller as a 500 rather
+        // than as the business rule it actually is. Checking here turns it into
+        // a 409 that says what to do about it — the same treatment
+        // FundService and InvestorService give their own dependants.
+        //
+        // Deliberately not a cascade: a tenant's whole ledger disappearing on
+        // one DELETE is not a safe default for financial records.
+        if (fundRepository.existsByClientId(clientId)) {
+            log.warn("Rejected deletion of client {}: has existing funds", clientId);
+            throw new BusinessRuleException(
+                    "Client cannot be deleted because it has funds. Delete its funds first.");
+        }
+        if (investorRepository.existsByClientId(clientId)) {
+            log.warn("Rejected deletion of client {}: has existing investors", clientId);
+            throw new BusinessRuleException(
+                    "Client cannot be deleted because it has investors. Delete its investors first.");
+        }
         clientRepository.delete(client);
         log.info("Deleted client {}", clientId);
     }

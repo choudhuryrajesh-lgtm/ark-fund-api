@@ -17,4 +17,7 @@ public interface InvestorRepository extends JpaRepository<Investor, UUID> {
     boolean existsByClientIdAndEmailIgnoreCase(UUID clientId, String email);
 
     boolean existsByClientIdAndEmailIgnoreCaseAndIdNot(UUID clientId, String email, UUID id);
+
+    /** Guards client deletion — see ClientService#delete. */
+    boolean existsByClientId(UUID clientId);
 }

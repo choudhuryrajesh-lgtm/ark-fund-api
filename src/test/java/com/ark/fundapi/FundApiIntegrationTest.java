@@ -224,6 +224,35 @@ class FundApiIntegrationTest {
     }
 
     @Test
+    void clientWithFundsCannotBeDeleted() throws Exception {
+        String clientId = createClient("Tenant With Funds", "tenant-funds@example.com");
+        createFund(clientId, "Dependent Fund", "2024-01-01");
+
+        // 409, not 500: funds reference the client with a plain FK, so without
+        // an explicit guard this reaches the database and returns a constraint
+        // violation dressed up as an internal error.
+        mockMvc.perform(delete("/api/v1/clients/{clientId}", clientId))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void clientWithInvestorsCannotBeDeleted() throws Exception {
+        String clientId = createClient("Tenant With Investors", "tenant-investors@example.com");
+        createInvestor(clientId, "Dependent Investor", "dependent-investor@example.com");
+
+        mockMvc.perform(delete("/api/v1/clients/{clientId}", clientId))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void clientWithNoDependantsCanBeDeleted() throws Exception {
+        String clientId = createClient("Empty Tenant", "empty-tenant@example.com");
+
+        mockMvc.perform(delete("/api/v1/clients/{clientId}", clientId))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void duplicateFundNameWithinAClientIsRejected() throws Exception {
         String clientId = createClient("Duplicate Client", "duplicate@example.com");
         createFund(clientId, "Flagship Fund", "2024-01-01");
