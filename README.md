@@ -13,12 +13,12 @@ investor's position?* — as of today, or as of any date in the past.
 
 ---
 
-## Three ways to check this out
+## Three ways to try it
 
-Pick whichever is least effort for you. They all run the same code — the third is the
-graded "one command from a clean checkout" deliverable.
+All three exercise the same code. Option 2 is the brief's "single command from a clean
+checkout"; option 1 needs nothing installed at all, if you'd rather just look first.
 
-| | Option | What it costs you | Start here |
+| | Option | Requires | Start here |
 |---|---|---|---|
 | **1** | **Live in AWS** | Nothing to install | [Swagger UI](https://524p1owhlc.execute-api.us-east-1.amazonaws.com/swagger-ui/index.html) · [Demo UI](https://d5rx4a862iikr.cloudfront.net/) |
 | **2** | **Locally, one command** | Docker only | [`./run.sh`](#option-2--locally-in-one-command) or [`docker compose up --build`](#option-2--locally-in-one-command) |
